@@ -1,0 +1,86 @@
+# Local production-image smoke-test stack. Run from the repository root with:
+#   podman compose --env-file .env up --build --detach
+# Only the Next.js frontend is published to the host. The API and database
+# communicate on the private Compose network.
+name: shaadi-local
+
+services:
+  db:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_DB: shaadi_companion
+      POSTGRES_USER: shaadi_local
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./api/database/schema.sql:/usr/local/share/shaadi/schema.sql:ro
+      - ./api/database/init-local-postgres.sh:/docker-entrypoint-initdb.d/001-schema.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=$$POSTGRES_USER --dbname=$$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks: [private]
+
+  api:
+    build:
+      context: ./api
+      target: runner
+      args:
+        NODE_IMAGE: ${LOCAL_NODE_IMAGE:-docker.io/library/node:22-alpine}
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "4000"
+      LOCAL_STACK_MODE: "1"
+      PUBLIC_APP_ORIGIN: http://127.0.0.1:${LOCAL_WEB_PORT:-3000}
+      DATABASE_URL: postgresql://shaadi_local:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/shaadi_companion
+      DATABASE_INVITATION_TOKEN_PEPPER: ${DATABASE_INVITATION_TOKEN_PEPPER:?Set DATABASE_INVITATION_TOKEN_PEPPER in .env}
+      DATABASE_ENTRY_PASS_TOKEN_PEPPER: ${DATABASE_ENTRY_PASS_TOKEN_PEPPER:?Set DATABASE_ENTRY_PASS_TOKEN_PEPPER in .env}
+      BACKEND_SERVICE_TOKEN: ${BACKEND_SERVICE_TOKEN:?Set BACKEND_SERVICE_TOKEN in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/readyz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks: [private]
+
+  web:
+    build:
+      context: ./web
+      target: runner
+      args:
+        NODE_IMAGE: ${LOCAL_NODE_IMAGE:-docker.io/library/node:22-alpine}
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      LOCAL_STACK_MODE: "1"
+      PUBLIC_APP_ORIGIN: http://127.0.0.1:${LOCAL_WEB_PORT:-3000}
+      BACKEND_URL: http://api:4000
+      BACKEND_SERVICE_TOKEN: ${BACKEND_SERVICE_TOKEN:?Set BACKEND_SERVICE_TOKEN in .env}
+      COORDINATOR_PASSWORD: ${COORDINATOR_PASSWORD:?Set COORDINATOR_PASSWORD in .env}
+      COORDINATOR_SESSION_SECRET: ${COORDINATOR_SESSION_SECRET:?Set COORDINATOR_SESSION_SECRET in .env}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${LOCAL_WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readyz').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    networks: [private]
+
+volumes:
+  postgres_data:
+
+networks:
+  private:

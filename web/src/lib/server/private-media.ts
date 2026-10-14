@@ -1,0 +1,18 @@
+/** An allowlist prevents URL segments from selecting arbitrary server files. */
+export const privateMediaFiles = {
+  "engagementCouplePic.jpg": "engagementCouplePic.jpg",
+  "engagement-couple-640.webp": "engagement-couple-640.webp",
+  "engagement-couple-1067.webp": "engagement-couple-1067.webp",
+  "ganesha-basohli.jpg": "ganesha-basohli.jpg",
+  "gaja-lakshmi.jpg": "gaja-lakshmi.jpg",
+  "shiva-parvati-terrace.jpg": "divine/shiva-parvati-terrace.jpg",
+  "shiva-parvati-celebration.jpg": "divine/shiva-parvati-celebration.jpg",
+  "wedding-saptapadi.jpg": "wedding/wedding-saptapadi.jpg",
+  "wedding-varmala.jpg": "wedding/wedding-varmala.jpg",
+  "wedding-mehendi.jpg": "wedding/wedding-mehendi.jpg",
+  "wedding-mehendi-960.webp": "wedding/wedding-mehendi-960.webp",
+  "wedding-mehendi-1440.webp": "wedding/wedding-mehendi-1440.webp",
+  "wedding-hands.jpg": "wedding/wedding-hands.jpg",
+  "wedding-hands-960.webp": "wedding/wedding-hands-960.webp",
+  "wedding-hands-1920.webp": "wedding/wedding-hands-1920.webp"
+} as const;

@@ -1,0 +1,78 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: #382b28;
+  background: radial-gradient(circle at 2% 6%, rgba(220, 170, 112, .18), transparent 28%), #f8f4ed;
+}
+
+.header {
+  max-width: 1240px;
+  width: 100%;
+  min-height: 83px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto;
+  padding: 16px 28px;
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.06;
+}
+
+.header small { display: block; margin-top: 4px; color: #89513e; font-family: var(--body-hi); font-size: 11px; }
+.brandMark { width: 44px; height: 44px; display: grid; place-items: center; color: #945446; border: 1px solid #cda57e; border-radius: 50%; background: #fff9ef; font-family: var(--display); font-size: 22px; font-weight: 400; }
+
+.content {
+  max-width: 1240px;
+  width: 100%;
+  min-height: 600px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(310px, .75fr);
+  align-items: center;
+  gap: clamp(35px, 6vw, 100px);
+  flex: 1;
+  margin: 0 auto;
+  padding: 55px 28px 90px;
+}
+
+.message { padding: 0 0 10px; }
+.eyebrow, .stepsEyebrow { margin: 0 0 13px; color: #8e4a3b; font-size: 12px; font-weight: 850; letter-spacing: .14em; line-height: 1.4; text-transform: uppercase; }
+.message h1 { max-width: 730px; margin: 0; font-family: var(--display); font-size: clamp(54px, 7.5vw, 95px); font-weight: 500; letter-spacing: -.055em; line-height: .98; text-wrap: balance; }
+.lead { max-width: 590px; margin: 24px 0 0; color: #6b5d57; font-size: 17px; line-height: 1.7; }
+.hindi { max-width: 585px; margin-top: 35px; padding-top: 23px; border-top: 1px solid #d9cbbd; }
+.hindi h2 { margin: 0 0 8px; font-family: var(--display-hi); font-size: 27px; font-weight: 600; line-height: 1.4; }
+.hindi p { margin: 0; color: #6c5d56; font-family: var(--body-hi); font-size: 14px; line-height: 1.8; }
+
+.steps { position: relative; padding: 45px 37px 35px; border: 1px solid #d8b493; border-radius: 7px; background: linear-gradient(150deg, #fffaf2, #f8e9d9); box-shadow: 0 24px 55px rgba(71, 43, 35, .1); }
+.steps::before { content: ""; position: absolute; inset: 9px; border: 1px solid rgba(174, 109, 75, .25); border-radius: 4px; pointer-events: none; }
+.seal { width: 76px; height: 76px; display: grid; place-items: center; margin: 0 auto 26px; color: #a35941; border: 1px solid #be8f69; border-radius: 50%; background: repeating-conic-gradient(rgba(184, 122, 79, .16) 0deg 13deg, transparent 13deg 30deg); font-size: 23px; }
+.seal span { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid #be8f69; border-radius: 50%; background: #fff5e8; }
+.stepsEyebrow { margin-bottom: 12px; text-align: center; }
+.steps ol { margin: 0; padding: 0; list-style: none; }
+.steps li { display: flex; gap: 13px; padding: 14px 0; border-top: 1px solid #e7d4bf; }
+.steps li span { color: #a55e3e; font-family: var(--display); font-size: 23px; line-height: 1; }
+.steps li p { margin: 0; color: #584840; font-size: 13px; line-height: 1.55; }
+.privacy { margin: 11px 0 0; padding: 13px; color: #785a4d; border-radius: 7px; background: rgba(255, 255, 255, .56); font-size: 12px; line-height: 1.5; text-align: center; }
+
+.footer { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px max(28px, calc((100vw - 1184px) / 2)); color: #d8c8bc; background: #382c29; font-size: 12px; }
+.footer span:last-child { font-family: var(--body-hi); }
+
+@media (max-width: 760px) {
+  .header { min-height: 70px; padding: 13px 20px; }
+  .content { min-height: 0; grid-template-columns: 1fr; gap: 37px; padding: 44px 20px 68px; }
+  .message h1 { font-size: clamp(48px, 11vw, 72px); }
+  .lead { margin-top: 18px; font-size: 15px; }
+  .hindi { margin-top: 26px; padding-top: 21px; }
+  .hindi h2 { font-size: 22px; }
+  .steps { padding: 32px 25px 25px; }
+  .seal { width: 63px; height: 63px; margin-bottom: 20px; }
+  .seal span { width: 40px; height: 40px; }
+  .footer { padding: 20px; }
+}
+
+@media (max-width: 390px) {
+  .message h1 { font-size: 46px; }
+  .footer { align-items: flex-start; flex-direction: column; gap: 4px; }
+}

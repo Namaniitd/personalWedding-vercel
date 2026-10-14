@@ -1,0 +1,18 @@
+.editor { margin: 24px 20px; padding: 25px; color: #30463a; border: 1px solid #c6d2c3; border-radius: 10px; background: #f9fbf5; }
+.editor h2 { margin: 5px 0 12px; font-size: 24px; overflow-wrap: anywhere; }
+.editor > p { font-size: 14px; line-height: 1.5; }
+.kicker { margin: 0; font-weight: 750; }
+.fields { padding: 0; border: 0; min-width: 0; }
+.fields:disabled { opacity: .65; }
+.editor label { display: flex; flex-direction: column; gap: 7px; margin: 12px 0; font-size: 14px; font-weight: 650; }
+.editor :is(input, select, textarea) { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #a9b8a4; border-radius: 5px; background: #fff; color: #273d30; font: inherit; }
+.editor :is(input, select, textarea, button):focus-visible { outline: 3px solid #6e4d2c; outline-offset: 3px; }
+.editor small { font-size: 12px; line-height: 1.5; font-weight: 400; }
+.grid, .counts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.events { display: grid; gap: 14px; margin: 20px 0; }
+.event { min-width: 0; padding: 10px 15px; border: 1px solid #c9d5c5; border-radius: 8px; }
+.event legend { padding: 0 5px; font-size: 15px; font-weight: 750; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+.actions button { min-height: 44px; }
+.error { color: #8a2634; font-size: 14px; line-height: 1.5; }
+@media (max-width: 600px) { .editor { margin: 15px 12px; padding: 18px; } .grid { grid-template-columns: minmax(0, 1fr); gap: 0; } .counts { gap: 10px; } }

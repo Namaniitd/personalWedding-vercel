@@ -1,0 +1,17 @@
+.git
+.next
+node_modules
+.env*
+*.local.sql
+database
+supabase
+scripts
+docs
+infra
+.github
+tests
+coverage
+playwright-report
+test-results
+*.log
+*.tsbuildinfo

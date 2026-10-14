@@ -1,0 +1,24 @@
+node_modules/
+.next/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.env*
+!.env.example
+
+# Password used only to bootstrap the durable local PostgreSQL Compose service.
+local-postgres.env
+
+# Real wedding content must never be committed.
+*.local.sql
+
+# Terraform
+# environments/*.tfvars are intentionally NOT ignored: they hold non-secret
+# deployment config (domain, role ARNs, counts), and CI plans/applies
+# against the committed files. Real secrets live only in Secrets Manager.
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log

@@ -1,0 +1,29 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  services:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.13.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.service }}/pnpm-lock.yaml
+      - run: pnpm --dir ${{ matrix.service }} install --frozen-lockfile
+      - run: pnpm --dir ${{ matrix.service }} verify
+      - if: matrix.service == 'api'
+        run: node --test scripts/create-deployment-env.test.mjs

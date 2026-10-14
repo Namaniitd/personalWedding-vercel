@@ -1,0 +1,28 @@
+# Local service credentials and content
+.env
+.env.*
+!.env.example
+local-postgres.env
+*.local.sql
+
+# Build and test output
+**/node_modules/
+**/.next/
+**/dist/
+**/coverage/
+**/playwright-report/
+**/test-results/
+.playwright-mcp/
+.local-build/
+*.tsbuildinfo
+*.log
+
+# Terraform local state and plans
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Vercel links and generated deployment credentials
+**/.vercel/
+.deployment/
