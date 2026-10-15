@@ -1,12 +1,14 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
+import { invitationPath } from "@/lib/wedding-side";
 import { invitationTokenSchema } from "@/lib/rsvp";
 import { backendCoordinatorAvailability, forwardBackendJson, requestBackend } from "@/lib/server/backend-client";
 import { privateEmpty, privateJson } from "@/lib/server/private-response";
 import { takeRateLimit } from "@/lib/server/rate-limit";
 import {
   clientNetworkIdentifier,
+  coordinatorRequestSide,
   invitationPublicOrigin,
   isAuthorizedCoordinatorRequest,
   isSameOriginRequest,
@@ -25,7 +27,8 @@ const issuedResponseSchema = z.object({
     createdAt: z.string().datetime(),
     householdName: z.object({ en: z.string(), hi: z.string() }).strict(),
     eventCount: z.number().int().min(1).max(12),
-    contactRole: z.enum(["groom", "bride"])
+    contactRole: z.enum(["groom", "bride"]),
+    side: z.enum(["groom", "bride"]).optional()
   }).strict()
 }).strict();
 
@@ -89,6 +92,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const upstream = await requestBackend("/v1/coordinator/invitations", {
+      side: coordinatorRequestSide(request),
       method: "POST",
       body: body.value
     });
@@ -101,7 +105,9 @@ export async function POST(request: NextRequest) {
     // in-memory copy panel. It is not included in coordinator listing APIs.
     // A production request can arrive from an internal ALB/container origin.
     // Public links must use the independently validated canonical origin.
-    const invitationUrl = new URL(`/i/${issued.token}`, invitationOrigin).toString();
+    const side = coordinatorRequestSide(request);
+    if ((issued.side ?? "groom") !== side) throw new Error("Invalid invitation owner.");
+    const invitationUrl = new URL(invitationPath(side, issued.token), invitationOrigin).toString();
     return privateJson({
       ok: true,
       invitationId: issued.id,

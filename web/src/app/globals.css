@@ -945,3 +945,7 @@ button:disabled { cursor: not-allowed; }
   .admin-event-total-grid { grid-template-columns: 1fr; }
   .admin-event-total-grid article { min-height: 0; border-right: 0; }
 }
+
+.coordinator-side-choice { display: flex; gap: 8px; margin: 18px 0 24px; }
+.coordinator-side-choice a { flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 8px; border: 1px solid #d8c9b8; border-radius: 6px; color: var(--wine); font-size: 12px; font-weight: 700; text-decoration: none; }
+.coordinator-side-choice a[aria-current="page"] { background: #f4e5dc; border-color: var(--wine); }

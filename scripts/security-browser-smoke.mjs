@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 
 const origin = "http://127.0.0.1:3001";
 const assets = [
+  "engagement-2.jpg", "engagement-2-640.webp", "engagement-2-1067.webp",
+  "engagement-3.jpg", "engagement-3-640.webp", "engagement-3-1067.webp",
   "engagementCouplePic.jpg", "engagement-couple-640.webp", "engagement-couple-1067.webp",
   "ganesha-basohli.jpg", "gaja-lakshmi.jpg", "shiva-parvati-terrace.jpg", "shiva-parvati-celebration.jpg",
   "wedding-saptapadi.jpg", "wedding-varmala.jpg", "wedding-mehendi.jpg", "wedding-mehendi-960.webp",
@@ -34,10 +36,10 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
     });
   }
   async function signIn() {
-    await page.goto(origin + "/coordinator/login", { waitUntil: "domcontentloaded" });
+    await page.goto(origin + "/coordinator/g/login", { waitUntil: "domcontentloaded" });
     await page.getByLabel("Coordinator password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await page.waitForURL(origin + "/coordinator");
+    await page.waitForURL(origin + "/coordinator/g");
     await page.getByRole("button", { name: "Sign out", exact: true }).waitFor();
   }
   function responseCookie(response) {
@@ -65,7 +67,7 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
     });
     await check("coordinator UI login and synthetic invitation issuance", async () => {
       await signIn();
-      const response = await post("/api/coordinator/invitations", {
+      const response = await post("/api/coordinator/g/invitations", {
         householdNameEn: "Security Test Household", householdNameHi: "सुरक्षा परीक्षण परिवार", preferredLocale: "en",
         contactRole: "groom", eventLimits: [{ eventId: "test-event", adults: 2, children: 0 }]
       });
@@ -73,12 +75,12 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
       const result = await response.json();
       const url = new URL(result.invitationUrl);
       assert.equal(url.origin, origin);
-      assert.match(url.pathname, /^\/i\/[A-Za-z0-9_-]{43}$/);
-      invitation = { id: result.invitationId, path: url.pathname };
+      assert.match(url.pathname, /^\/i\/g\/[A-Za-z0-9_-]{43}$/);
+      invitation = { id: result.invitationId, path: url.pathname, mediaPath: `/i/${url.pathname.split("/").at(-1)}` };
     });
     await check("every private image format loads with an active invitation and private headers", async () => {
       for (const asset of assets) {
-        const response = await page.request.get(origin + invitation.path + "/media/" + asset);
+        const response = await page.request.get(origin + invitation.mediaPath + "/media/" + asset);
         assert.equal(response.status(), 200, "An active invitation must load its media.");
         assert.equal(response.headers()["content-type"], asset.endsWith(".webp") ? "image/webp" : "image/jpeg");
         assert.match(response.headers()["cache-control"] ?? "", /private.*no-store/);
@@ -92,7 +94,7 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
       const optimizer = "/_next/image?url=" + encodeURIComponent(privatePath) + "&w=640&q=75";
       assert.equal((await page.request.get(origin + optimizer)).status(), 400);
       for (const asset of ["constructor", "package.json", encodeURIComponent("../../.env.local")]) {
-        assert.equal((await page.request.get(origin + invitation.path + "/media/" + asset)).status(), 404);
+        assert.equal((await page.request.get(origin + invitation.mediaPath + "/media/" + asset)).status(), 404);
       }
     });
     for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
@@ -112,30 +114,30 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
       });
     }
     await check("invitation revocation blocks GET and HEAD media even for a signed-in coordinator", async () => {
-      assert.equal((await post("/api/coordinator/invitations/revoke", { invitationId: invitation.id })).status(), 200);
+      assert.equal((await post("/api/coordinator/g/invitations/revoke", { invitationId: invitation.id })).status(), 200);
       revoked = true;
       const privatePath = origin + invitation.path + "/media/engagementCouplePic.jpg";
       assert.equal((await page.request.get(privatePath)).status(), 404);
       assert.equal((await page.request.head(privatePath)).status(), 404);
     });
     await check("UI logout rejects a copied session and leaves other sessions active", async () => {
-      const firstLogin = await post("/api/coordinator/login", { password });
+      const firstLogin = await post("/api/coordinator/g/login", { password });
       assert.equal(firstLogin.status(), 200);
       const otherCookie = responseCookie(firstLogin);
-      const secondLogin = await post("/api/coordinator/login", { password });
+      const secondLogin = await post("/api/coordinator/g/login", { password });
       assert.equal(secondLogin.status(), 200);
       const copiedCookie = responseCookie(secondLogin);
-      await page.goto(origin + "/coordinator", { waitUntil: "domcontentloaded" });
+      await page.goto(origin + "/coordinator/g", { waitUntil: "domcontentloaded" });
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
-      await page.waitForURL(origin + "/coordinator/login");
-      const replay = await page.request.get(origin + "/api/coordinator/content", { headers: { Cookie: copiedCookie } });
+      await page.waitForURL(origin + "/coordinator/g/login");
+      const replay = await page.request.get(origin + "/api/coordinator/g/content", { headers: { Cookie: copiedCookie } });
       assert.equal(replay.status(), 401, "A copied cookie must be denied after UI sign-out.");
-      const replayPage = await page.request.get(origin + "/coordinator", { headers: { Cookie: copiedCookie }, maxRedirects: 0 });
+      const replayPage = await page.request.get(origin + "/coordinator/g", { headers: { Cookie: copiedCookie }, maxRedirects: 0 });
       assert.equal(replayPage.status(), 307);
-      assert.equal((await page.request.get(origin + "/api/coordinator/content", { headers: { Cookie: otherCookie } })).status(), 200);
-      assert.equal((await post("/api/coordinator/logout", undefined, otherCookie)).status(), 204);
-      await page.goto(origin + "/coordinator/responses", { waitUntil: "domcontentloaded" });
-      await page.waitForURL(origin + "/coordinator/login");
+      assert.equal((await page.request.get(origin + "/api/coordinator/g/content", { headers: { Cookie: otherCookie } })).status(), 200);
+      assert.equal((await post("/api/coordinator/g/logout", undefined, otherCookie)).status(), 204);
+      await page.goto(origin + "/coordinator/g/responses", { waitUntil: "domcontentloaded" });
+      await page.waitForURL(origin + "/coordinator/g/login");
       await signIn();
     });
     await check("no browser JavaScript, hydration, or CSP errors", async () => {
@@ -149,8 +151,8 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
     page.off("console", onConsole);
     if (invitation && !revoked) {
       try {
-        await post("/api/coordinator/login", { password });
-        await post("/api/coordinator/invitations/revoke", { invitationId: invitation.id });
+        await post("/api/coordinator/g/login", { password });
+        await post("/api/coordinator/g/invitations/revoke", { invitationId: invitation.id });
       } catch { /* The disposable stack must be stopped after a failed run. */ }
     }
   }

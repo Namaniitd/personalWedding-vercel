@@ -4,7 +4,44 @@ in `src/lib/server/private-media.ts` maps fixed asset names to these files. The
 reading a file and sends private, no-store responses. Revoking the invitation
 also prevents subsequent media requests using that link.
 
-Next.js output tracing includes this directory only in the private media route's
-server bundle. The image optimizer permits only the generic public share image;
+The invitation's optional teaser uses `teaser/prewedding-teaser-hd.mp4`,
+`teaser/prewedding-teaser-4k.mp4`, and `prewedding-teaser-poster.webp`. Only the
+poster loads before a guest chooses to play. The player then picks 4K only for
+large, high-density desktop screens on a fast connection without data saver;
+phones, tablets, and slower connections get HD, and retrying after an error
+always uses HD. The film starts with sound, plays inline on phones, and offers
+native playback controls for pausing, seeking, and muting. Video requests use
+the same invitation gate and private headers, with byte ranges for playback and
+seeking.
+
+To replace the teaser later, keep the masters in `teaser/` and export web copies
+to the same filenames. No duration is hardcoded in the page. Use H.264 video,
+AAC audio, a 16:9 frame, keyframes every two seconds, and MP4 fast-start
+metadata. The current copies come from the `comingSoonHD.mp4` and
+`comingSoon4K.mp4` masters (about 59 Mbit/s each):
+
+```sh
+common="-map 0:v:0 -map 0:a:0 -map_metadata -1 -c:v libx264 -preset slow -profile:v high -pix_fmt yuv420p -g 50 -keyint_min 25 -c:a aac -b:a 160k -ac 2 -movflags +faststart"
+ffmpeg -i comingSoonHD.mp4 $common -crf 20 -maxrate 6M -bufsize 12M -level 4.1 prewedding-teaser-hd.mp4
+ffmpeg -i comingSoon4K.mp4 $common -crf 21 -maxrate 16M -bufsize 32M -level 5.1 prewedding-teaser-4k.mp4
+```
+
+They are about 27 MB and 87 MB. Full-file responses above 4 MiB are refused;
+browsers play through bounded range responses instead. Keep both copies small
+enough that the media route stays below Vercel's 250 MB function bundle limit.
+The poster is a 1920×1080 lossy WebP (about 70 KB), exported from
+`teaser/prewedding-teaser-poster-source.png` with
+`cwebp -metadata none -q 82 -m 6 -crop 9 0 2922 1644 -resize 1920 1080 -noalpha`.
+The masters and poster source are excluded from git, Vercel uploads, the
+container, and the server bundle; only the web copies are allowlisted.
+
+The invitation hero loops through `engagementCouplePic.jpg`, `engagement-2.jpg`,
+and `engagement-3.jpg`. Their 640px and 1067px WebP variants let phones request
+smaller images while retaining detail on larger screens. New variants strip
+source metadata and stay under the same invitation gate. Never capture real
+personal photographs, invitation links, or entry credentials in test artifacts.
+
+Next.js output tracing includes the image assets and optimized teaser only in
+the private media route's server bundle. The image optimizer permits only the generic public share image;
 it cannot make cached copies of private media. Add future personal video or photo
 assets through an authenticated handler, not through `public/`.

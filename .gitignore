@@ -26,3 +26,7 @@ local-postgres.env
 # Vercel links and generated deployment credentials
 **/.vercel/
 .deployment/
+
+# Teaser masters exceed GitHub limits; only the web exports are deployed.
+web/private-media/teaser/comingSoon*.mp4
+web/private-media/teaser/*-source.*

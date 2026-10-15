@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { coordinatorPath } from "@/lib/wedding-side";
 
 import { requireCoordinatorAccess } from "@/lib/server/coordinator-access";
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function CoordinatorUnavailablePage() {
-  await requireCoordinatorAccess();
+  const side = await requireCoordinatorAccess();
 
   return (
     <main className="coordinator-login-page">
@@ -21,7 +22,7 @@ export default async function CoordinatorUnavailablePage() {
         <p className="coordinator-login-copy">
           Your sign-in is active, but the coordinator workspace could not load. Ask the site administrator to check it, then try again.
         </p>
-        <a className="button button-primary coordinator-retry-button" href="/coordinator">Try again</a>
+        <a className="button button-primary coordinator-retry-button" href={coordinatorPath(side)}>Try again</a>
       </section>
     </main>
   );

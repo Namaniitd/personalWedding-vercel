@@ -41,7 +41,10 @@ const nextConfig: NextConfig = {
   // Produces the minimal Node server used by the ECS/Fargate Docker image.
   output: "standalone",
   outputFileTracingIncludes: {
-    "/i/*/media/*": ["./private-media/**/*"]
+    "/i/*/media/*": ["./private-media/**/*.jpg", "./private-media/**/*.webp", "./private-media/teaser/prewedding-teaser-hd.mp4", "./private-media/teaser/prewedding-teaser-4k.mp4"]
+  },
+  outputFileTracingExcludes: {
+    "/i/*/media/*": ["./private-media/teaser/comingSoon*.mp4", "./private-media/teaser/*-source.*", "./private-media/**/.DS_Store"]
   },
   poweredByHeader: false,
   turbopack: {
@@ -82,7 +85,9 @@ const nextConfig: NextConfig = {
       {
         source: "/coordinator/login",
         headers: privateRouteHeaders
-      }
+      },
+      { source: "/coordinator/g/login", headers: privateRouteHeaders },
+      { source: "/coordinator/b/login", headers: privateRouteHeaders }
     ];
   }
 };

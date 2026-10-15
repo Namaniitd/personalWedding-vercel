@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { invitationTokenSchema } from "../domain/rsvp.js";
+import { requireWeddingSide } from "../domain/wedding-side.js";
 import {
   hasDatabaseEntryPassEligibility,
   invalidateDatabaseEntryPassesInTransaction,
@@ -31,7 +32,8 @@ import type {
   LocalizedText,
   ResolvedInvitation,
   RSVPStatus,
-  EntryPass
+  EntryPass,
+  WeddingSide
 } from "../domain/types.js";
 
 const guestLimitSchema = z.object({
@@ -106,6 +108,7 @@ export type DatabaseInvitationIssueValidation =
 
 type DatabaseInvitationRow = {
   id: string;
+  side: WeddingSide;
   household_name_en: string;
   household_name_hi: string;
   preferred_locale: "en" | "hi";
@@ -272,8 +275,9 @@ function validateDatabaseInvitationIssueForConfiguration(
   return structuralValidation;
 }
 
-export async function validateDatabaseInvitationIssue(value: ParsedDatabaseInvitationIssue): Promise<DatabaseInvitationIssueValidation> {
-  return validateDatabaseInvitationIssueForConfiguration(value, await loadDatabaseWeddingConfiguration());
+export async function validateDatabaseInvitationIssue(value: ParsedDatabaseInvitationIssue, side: WeddingSide = "groom"): Promise<DatabaseInvitationIssueValidation> {
+  requireWeddingSide(side);
+  return validateDatabaseInvitationIssueForConfiguration(value, await loadDatabaseWeddingConfiguration(undefined, side));
 }
 
 function readPersistedEventLimits(value: unknown) {
@@ -317,13 +321,14 @@ function validateDatabaseInvitationContactRoleForConfiguration(contactRole: Cont
   };
 }
 
-export async function validateDatabaseInvitationContactRole(contactRole: ContactRole) {
-  return validateDatabaseInvitationContactRoleForConfiguration(contactRole, await loadDatabaseWeddingConfiguration());
+export async function validateDatabaseInvitationContactRole(contactRole: ContactRole, side: WeddingSide = "groom") {
+  requireWeddingSide(side);
+  return validateDatabaseInvitationContactRoleForConfiguration(contactRole, await loadDatabaseWeddingConfiguration(undefined, side));
 }
 
 /** Server-safe form data; it includes neither tokens nor database metadata. */
-export async function getDatabaseInvitationIssuerOptions(): Promise<DatabaseInvitationIssuerOptions> {
-  return getDatabaseWeddingIssuerOptions();
+export async function getDatabaseInvitationIssuerOptions(side: WeddingSide = "groom"): Promise<DatabaseInvitationIssuerOptions> {
+  return getDatabaseWeddingIssuerOptions(requireWeddingSide(side));
 }
 
 /**
@@ -331,19 +336,20 @@ export async function getDatabaseInvitationIssuerOptions(): Promise<DatabaseInvi
  * The raw token is returned only to the route handler so it can form the
  * one-time response shown for copying in the coordinator browser.
  */
-export async function issueDatabaseInvitation(value: ParsedDatabaseInvitationIssue) {
+export async function issueDatabaseInvitation(value: ParsedDatabaseInvitationIssue, side: WeddingSide = "groom") {
+  requireWeddingSide(side);
   const client = await getDatabasePool().connect();
   let transactionOpen = false;
 
   try {
     await client.query("begin");
     transactionOpen = true;
-    await lockDatabaseContentAndInvitationIssue(client);
+    await lockDatabaseContentAndInvitationIssue(client, side);
 
     // Use the locked connection for all schedule reads. A pooled read here
     // could exhaust the four-connection pool while other issuers wait on the
     // advisory lock, and it could observe a different content transaction.
-    const configuration = await loadDatabaseWeddingConfiguration(client);
+    const configuration = await loadDatabaseWeddingConfiguration(client, side);
     const validation = validateDatabaseInvitationIssueForConfiguration(value, configuration);
     if (!validation.ok) throw new Error(validation.message);
     const contactValidation = validateDatabaseInvitationContactRoleForConfiguration(validation.value.contactRole, configuration);
@@ -360,8 +366,8 @@ export async function issueDatabaseInvitation(value: ParsedDatabaseInvitationIss
       const invitationId = randomUUID();
       const { rows } = await client.query<IssuedDatabaseInvitationRow>(
         `insert into wedding.invitations (
-           id, token_hash, household_name_en, household_name_hi, preferred_locale, contact_role, event_limits, access_expires_at
-         ) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+           id, token_hash, household_name_en, household_name_hi, preferred_locale, contact_role, event_limits, access_expires_at, side
+         ) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
          on conflict do nothing
          returning id, created_at`,
         [
@@ -372,7 +378,8 @@ export async function issueDatabaseInvitation(value: ParsedDatabaseInvitationIss
           validation.value.preferredLocale,
           validation.value.contactRole,
           JSON.stringify(eventLimits),
-          accessExpiresAt
+          accessExpiresAt,
+          side
         ]
       );
       const row = rows[0];
@@ -381,6 +388,7 @@ export async function issueDatabaseInvitation(value: ParsedDatabaseInvitationIss
       transactionOpen = false;
       return {
         id: row.id,
+        side,
         createdAt: normalizeTimestamp(row.created_at),
         token,
         householdName: householdName(validation.value),
@@ -408,7 +416,8 @@ export async function issueDatabaseInvitation(value: ParsedDatabaseInvitationIss
  * history. A previously issued token stops resolving as soon as this update
  * commits, while the safe coordinator summary keeps the revoke timestamp.
  */
-export async function revokeDatabaseInvitation(invitationId: string) {
+export async function revokeDatabaseInvitation(invitationId: string, side: WeddingSide = "groom") {
+  requireWeddingSide(side);
   const parsed = databaseInvitationRevokeSchema.safeParse({ invitationId });
   if (!parsed.success) throw new Error("The invitation ID is invalid.");
 
@@ -422,9 +431,10 @@ export async function revokeDatabaseInvitation(invitationId: string) {
       `update wedding.invitations
           set status = 'revoked', revoked_at = coalesce(revoked_at, now())
         where id = $1
+          and side = $2
           and status in ('active', 'revoked')
         returning id, revoked_at`,
-      [parsed.data.invitationId]
+      [parsed.data.invitationId, side]
     );
     const row = rows[0];
     if (!row?.revoked_at) {
@@ -436,7 +446,7 @@ export async function revokeDatabaseInvitation(invitationId: string) {
     // Keep the QR lifecycle explicit even though the scanner independently
     // validates invitation state. The historical pass/check-in rows remain for
     // an audit, but the credential can no longer be presented.
-    await invalidateDatabaseEntryPassesInTransaction(client, row.id, "invitation_revoked");
+    await invalidateDatabaseEntryPassesInTransaction(client, row.id, "invitation_revoked", side);
     await client.query("commit");
     transactionOpen = false;
     return { id: row.id, revokedAt: normalizeTimestamp(row.revoked_at) };
@@ -462,7 +472,8 @@ export async function revokeDatabaseInvitation(invitationId: string) {
  * revocation: the RSVP write completes while the link is active, or it is
  * rejected after revocation; it cannot slip in after this deletion commits.
  */
-export async function deleteDatabaseRSVPForRevokedInvitation(invitationId: string): Promise<DatabaseRsvpDeletionResult> {
+export async function deleteDatabaseRSVPForRevokedInvitation(invitationId: string, side: WeddingSide = "groom"): Promise<DatabaseRsvpDeletionResult> {
+  requireWeddingSide(side);
   const parsed = databaseInvitationRsvpDeleteSchema.safeParse({ invitationId });
   if (!parsed.success) throw new Error("The invitation ID is invalid.");
 
@@ -477,8 +488,9 @@ export async function deleteDatabaseRSVPForRevokedInvitation(invitationId: strin
       `select id, token_hash, status, rsvp_deleted_at
          from wedding.invitations
         where id = $1
+          and side = $2
         for update`,
-      [parsed.data.invitationId]
+      [parsed.data.invitationId, side]
     );
     const invitation = invitationRows[0];
 
@@ -495,7 +507,7 @@ export async function deleteDatabaseRSVPForRevokedInvitation(invitationId: strin
 
     // Defensive even when the database revocation trigger already did this:
     // RSVP erasure must never leave a usable entry credential behind.
-    await invalidateDatabaseEntryPassesInTransaction(client, invitation.id, "rsvp_deleted");
+    await invalidateDatabaseEntryPassesInTransaction(client, invitation.id, "rsvp_deleted", side);
 
     const { rowCount } = await client.query(
       "delete from wedding.rsvps where token_hash = $1",
@@ -517,9 +529,10 @@ export async function deleteDatabaseRSVPForRevokedInvitation(invitationId: strin
       `update wedding.invitations
           set rsvp_deleted_at = coalesce(rsvp_deleted_at, now())
         where id = $1
+          and side = $2
           and status = 'revoked'
       returning id, rsvp_deleted_at`,
-      [invitation.id]
+      [invitation.id, side]
     );
     const audit = auditRows[0];
     if (!audit?.rsvp_deleted_at) throw new Error("The RSVP deletion was not recorded.");
@@ -551,7 +564,7 @@ export async function deleteDatabaseRSVPForRevokedInvitation(invitationId: strin
  * authenticated-by-bearer invitation page; Postgres stores its lookup HMAC and
  * a non-secret rotation UUID, never a raw pass or invitation token.
  */
-async function resolveDatabaseEntryPassForInvitation(invitationId: string, invitationToken: string): Promise<EntryPass | null> {
+async function resolveDatabaseEntryPassForInvitation(invitationId: string, invitationToken: string, side: WeddingSide): Promise<EntryPass | null> {
   const client = await getDatabasePool().connect();
   let transactionOpen = false;
 
@@ -564,10 +577,11 @@ async function resolveDatabaseEntryPassForInvitation(invitationId: string, invit
          from wedding.invitations
         where id = $1
           and token_hash = $2
+          and side = $3
           and status = 'active'
           and access_expires_at > now()
         for update`,
-      [invitationId, tokenHash]
+      [invitationId, tokenHash, side]
     );
     const invitation = invitationRows[0];
     if (!invitation) {
@@ -587,6 +601,7 @@ async function resolveDatabaseEntryPassForInvitation(invitationId: string, invit
     const entryPass = await syncDatabaseEntryPassInTransaction(client, {
       invitationId: invitation.id,
       invitationToken,
+      side,
       rsvp
     });
     await client.query("commit");
@@ -611,14 +626,10 @@ async function resolveDatabaseEntryPassForInvitation(invitationId: string, invit
  * digest lookup reveals no guest data; only a valid, currently eligible pass
  * reaches the success branch that returns a household display name and counts.
  */
-export async function checkInDatabaseEntryPass(input: unknown): Promise<DatabaseCheckInResult> {
+export async function checkInDatabaseEntryPass(input: unknown, side: WeddingSide = "groom"): Promise<DatabaseCheckInResult> {
+  requireWeddingSide(side);
   const parsed = databaseEntryPassCheckInSchema.safeParse(input);
   if (!parsed.success) throw new Error("The entry-pass scan is invalid.");
-  const configuration = await loadDatabaseWeddingConfiguration();
-  const databaseEvent = configuration.events.find(({ event }) => event.id === parsed.data.eventId);
-  if (!databaseEvent) return { kind: "not_eligible" };
-  const event = databaseEvent.event;
-
   const client = await getDatabasePool().connect();
   let transactionOpen = false;
 
@@ -630,11 +641,13 @@ export async function checkInDatabaseEntryPass(input: unknown): Promise<Database
     // invitation row. RSVP saves and revocations use that same order, avoiding
     // a scan/revoke deadlock while the re-read below catches any state change.
     const { rows: lookupRows } = await client.query<DatabaseEntryPassLookupRow>(
-      `select invitation_id
-         from wedding.entry_passes
-        where token_hash = $1
+      `select passes.invitation_id
+         from wedding.entry_passes as passes
+         join wedding.invitations as invitations on invitations.id = passes.invitation_id
+        where passes.token_hash = $1
+          and invitations.side = $2
         limit 1`,
-      [databaseEntryPassTokenDigest(parsed.data.passToken)]
+      [databaseEntryPassTokenDigest(parsed.data.passToken), side]
     );
     const lookup = lookupRows[0];
     if (!lookup) {
@@ -647,10 +660,11 @@ export async function checkInDatabaseEntryPass(input: unknown): Promise<Database
       `select id, token_hash, household_name_en, household_name_hi, preferred_locale, status, event_limits
          from wedding.invitations
         where id = $1
+          and side = $2
           and status = 'active'
           and access_expires_at > now()
         for update`,
-      [lookup.invitation_id]
+      [lookup.invitation_id, side]
     );
     const invitation = invitationRows[0];
     if (!invitation) {
@@ -658,6 +672,15 @@ export async function checkInDatabaseEntryPass(input: unknown): Promise<Database
       transactionOpen = false;
       return { kind: "not_found" };
     }
+
+    const configuration = await loadDatabaseWeddingConfiguration(client, side);
+    const databaseEvent = configuration.events.find(({ event }) => event.id === parsed.data.eventId);
+    if (!databaseEvent) {
+      await client.query("commit");
+      transactionOpen = false;
+      return { kind: "not_eligible" };
+    }
+    const event = databaseEvent.event;
 
     const { rows: passRows } = await client.query<DatabaseEntryPassForCheckInRow>(
       `select id, status
@@ -693,7 +716,7 @@ export async function checkInDatabaseEntryPass(input: unknown): Promise<Database
     if (!rsvp || !hasDatabaseEntryPassEligibility(rsvp.status, rsvp.attendances)) {
       // This is normally handled immediately by the RSVP trigger. It is also
       // defensive against old/manual records that predate that trigger.
-      await invalidateDatabaseEntryPassesInTransaction(client, invitation.id, "rsvp_no_longer_attending");
+      await invalidateDatabaseEntryPassesInTransaction(client, invitation.id, "rsvp_no_longer_attending", side);
       await client.query("commit");
       transactionOpen = false;
       return { kind: "not_eligible" };
@@ -771,24 +794,27 @@ export async function checkInDatabaseEntryPass(input: unknown): Promise<Database
 }
 
 /** Resolve an issued link by HMAC digest and never by raw token in SQL. */
-export async function resolveDatabaseInvitation(token: string): Promise<ResolvedInvitation | null> {
+export async function resolveDatabaseInvitation(token: string, expectedSide?: WeddingSide): Promise<ResolvedInvitation | null> {
   if (!invitationTokenSchema.safeParse(token).success) return null;
+  if (expectedSide !== undefined) requireWeddingSide(expectedSide);
 
   const { rows } = await getDatabasePool().query<DatabaseInvitationRow>(
-    `select id, household_name_en, household_name_hi, preferred_locale, contact_role, event_limits, created_at
+    `select id, side, household_name_en, household_name_hi, preferred_locale, contact_role, event_limits, created_at
        from wedding.invitations
       where token_hash = $1
+        and ($2::text is null or side = $2)
         and status = 'active'
         and access_expires_at > now()
       limit 1`,
-    [databaseInvitationTokenDigest(token)]
+    [databaseInvitationTokenDigest(token), expectedSide ?? null]
   );
   const row = rows[0];
   if (!row) return null;
+  const side = requireWeddingSide(row.side);
 
   const validation = rowToIssue(row);
   if (!validation || !validation.ok) throw new Error("The invitation record is invalid.");
-  const configuration = await loadDatabaseWeddingConfiguration();
+  const configuration = await loadDatabaseWeddingConfiguration(undefined, side);
   const contact = databaseWeddingContact(configuration, validation.value.contactRole);
   if (!contact) throw new Error("The invitation reply-to contact is no longer configured.");
   const selectedEventIds = new Set(validation.value.eventLimits.map((limit) => limit.eventId));
@@ -804,12 +830,13 @@ export async function resolveDatabaseInvitation(token: string): Promise<Resolved
     // The helper rechecks the RSVP while holding the invitation lock before
     // returning a QR payload, so a concurrent decline/revocation cannot leave
     // a stale pass visible after this response is committed.
-    resolveDatabaseEntryPassForInvitation(row.id, token)
+    resolveDatabaseEntryPassForInvitation(row.id, token, side)
   ]);
 
   return {
     invitation: {
       token,
+      side,
       householdName: householdName(validation.value),
       preferredLocale: validation.value.preferredLocale,
       eventIds: selectedEvents.map((event) => event.id),
@@ -829,7 +856,8 @@ export async function resolveDatabaseInvitation(token: string): Promise<Resolved
  * Return only safe coordinator summaries. In particular, neither raw
  * URLs nor token digests can be listed after the one-time issuance response.
  */
-export async function listDatabaseCoordinatorInvitations(): Promise<DatabaseCoordinatorInvitation[]> {
+export async function listDatabaseCoordinatorInvitations(side: WeddingSide = "groom"): Promise<DatabaseCoordinatorInvitation[]> {
+  requireWeddingSide(side);
   const { rows } = await getDatabasePool().query<DatabaseCoordinatorRow>(
     `select
        invitations.id,
@@ -875,7 +903,9 @@ export async function listDatabaseCoordinatorInvitations(): Promise<DatabaseCoor
        order by passes.issued_at desc
        limit 1
      ) as entry_pass on true
-     order by invitations.created_at desc, invitations.id`
+     where invitations.side = $1
+     order by invitations.created_at desc, invitations.id`,
+    [side]
   );
 
   return rows.flatMap((row) => {

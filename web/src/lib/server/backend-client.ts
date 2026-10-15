@@ -2,13 +2,15 @@ import type {
   DatabaseCoordinatorInvitation,
   DatabaseInvitationIssuerOptions,
   DatabaseWeddingContentSnapshot,
-  ResolvedInvitation
+  ResolvedInvitation,
+  WeddingSide
 } from "@/lib/types";
 import { isLocalStackPublicOrigin } from "@/lib/server/local-stack";
 
 export type BackendStatus = {
   mode: "database" | "hosted" | "disabled";
   coordinatorAvailable: boolean;
+  sideIsolation?: boolean;
 };
 
 export type CoordinatorWorkspace = {
@@ -75,13 +77,17 @@ function configuredServiceToken() {
 /** Make a bounded, authenticated call to the private API. */
 export async function requestBackend(
   path: BackendPath,
-  options: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {}
+  options: { method?: "GET" | "POST" | "PUT"; body?: unknown; side?: WeddingSide } = {}
 ) {
+  if (path.startsWith("/v1/coordinator/") && options.side === "bride" && !(await getBackendStatus()).sideIsolation) {
+    throw new BackendUnavailableError();
+  }
   const origin = configuredBackendOrigin();
   const token = configuredServiceToken();
   const method = options.method ?? "GET";
   const headers = new Headers({ "X-Backend-Service-Token": token });
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
+  if (path.startsWith("/v1/coordinator/")) headers.set("X-Wedding-Side", options.side ?? "groom");
 
   try {
     const response = await fetch(new URL(path, origin), {
@@ -123,7 +129,7 @@ export async function getBackendStatus(): Promise<BackendStatus> {
     || payload.coordinatorAvailable !== (mode === "database")) {
     throw new BackendUnavailableError();
   }
-  return { mode, coordinatorAvailable: payload.coordinatorAvailable };
+  return { mode, coordinatorAvailable: payload.coordinatorAvailable, ...(payload.sideIsolation === true ? { sideIsolation: true } : {}) };
 }
 
 export async function backendCoordinatorAvailability(): Promise<"available" | "disabled" | "unavailable"> {
@@ -135,10 +141,10 @@ export async function backendCoordinatorAvailability(): Promise<"available" | "d
 }
 
 /** A 404 is the only lookup result that means the bearer link is inactive. */
-export async function resolveBackendInvitation(token: string): Promise<ResolvedInvitation | null> {
+export async function resolveBackendInvitation(token: string, side?: WeddingSide): Promise<ResolvedInvitation | null> {
   const response = await requestBackend("/v1/invitations/resolve", {
     method: "POST",
-    body: { token }
+    body: { token, ...(side ? { side } : {}) }
   });
   if (response.status === 404) return null;
   const payload = await readSuccessfulJson(response);
@@ -153,11 +159,12 @@ export async function resolveBackendInvitation(token: string): Promise<ResolvedI
     || (invitation as Record<string, unknown>).token !== token) {
     throw new BackendUnavailableError();
   }
+  if (side && ((invitation as Record<string, unknown>).side ?? "groom") !== side) return null;
   return resolved as ResolvedInvitation;
 }
 
-export async function getBackendCoordinatorWorkspace(): Promise<CoordinatorWorkspace> {
-  const payload = await readSuccessfulJson(await requestBackend("/v1/coordinator/workspace"));
+export async function getBackendCoordinatorWorkspace(side: WeddingSide = "groom"): Promise<CoordinatorWorkspace> {
+  const payload = await readSuccessfulJson(await requestBackend("/v1/coordinator/workspace", { side }));
   if (!payload.issuerOptions || typeof payload.issuerOptions !== "object" || Array.isArray(payload.issuerOptions)
     || !Array.isArray(payload.invitations)) {
     throw new BackendUnavailableError();
@@ -168,14 +175,14 @@ export async function getBackendCoordinatorWorkspace(): Promise<CoordinatorWorks
   };
 }
 
-export async function listBackendCoordinatorInvitations(): Promise<DatabaseCoordinatorInvitation[]> {
-  const payload = await readSuccessfulJson(await requestBackend("/v1/coordinator/invitations"));
+export async function listBackendCoordinatorInvitations(side: WeddingSide = "groom"): Promise<DatabaseCoordinatorInvitation[]> {
+  const payload = await readSuccessfulJson(await requestBackend("/v1/coordinator/invitations", { side }));
   if (!Array.isArray(payload.invitations)) throw new BackendUnavailableError();
   return payload.invitations as DatabaseCoordinatorInvitation[];
 }
 
-export async function getBackendCoordinatorContent(): Promise<DatabaseWeddingContentSnapshot> {
-  const payload = await readSuccessfulJson(await requestBackend("/v1/coordinator/content"));
+export async function getBackendCoordinatorContent(side: WeddingSide = "groom"): Promise<DatabaseWeddingContentSnapshot> {
+  const payload = await readSuccessfulJson(await requestBackend("/v1/coordinator/content", { side }));
   const snapshot = payload.configuration;
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) throw new BackendUnavailableError();
   const content = snapshot as Record<string, unknown>;

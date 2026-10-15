@@ -45,6 +45,7 @@ describe("database wedding setup state", () => {
 
   it("returns empty coordinator options for a new database without loading sample wedding content", async () => {
     await expect(getDatabaseWeddingIssuerOptions()).resolves.toEqual({
+      side: "groom",
       events: [], defaultEventLimits: [], contactOptions: [], defaultContactRole: "groom"
     });
   });
@@ -67,6 +68,7 @@ describe("database wedding setup state", () => {
     eventRows = [event];
     contactRows = [{ role: "bride", name: "Other test desk", phone: "+919876543211", is_active: true }];
     await expect(getDatabaseWeddingIssuerOptions()).resolves.toEqual({
+      side: "groom",
       events: [{ id: "test-event", title: { en: "Test celebration", hi: "परीक्षण समारोह" } }],
       defaultEventLimits: [{ eventId: "test-event", adults: 2, children: 1 }],
       contactOptions: [

@@ -19,7 +19,7 @@ describe("coordinator RSVP operation", () => {
     query.mockResolvedValue({ rows: [{ outcome: "saved", updated_at: new Date("2099-01-01T00:00:00.123Z") }] });
     await expect(saveDatabaseCoordinatorRSVP(input)).resolves.toEqual({ kind: "saved", updatedAt: "2099-01-01T00:00:00.123Z" });
     expect(query).toHaveBeenCalledWith(expect.stringContaining("wedding.save_coordinator_rsvp"), [
-      input.invitationId, JSON.stringify({ respondentName: input.respondentName, status: input.status, attendances: input.attendances, comfortNote: input.comfortNote }), null
+      input.invitationId, JSON.stringify({ respondentName: input.respondentName, status: input.status, attendances: input.attendances, comfortNote: input.comfortNote }), null, "groom"
     ]);
     for (const outcome of ["stale", "not_found", "invalid"] as const) {
       query.mockResolvedValueOnce({ rows: [{ outcome, updated_at: null }] });

@@ -1,0 +1,122 @@
+.carousel {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+}
+
+.viewport, .slide, .slide picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.viewport { overflow: hidden; }
+
+.slide {
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .85s ease-in-out;
+}
+
+.active { z-index: 1; opacity: 1; }
+
+.slide img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.carousel::after {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0;
+  height: 145px;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(transparent, rgba(28, 5, 17, .68));
+}
+
+.controlBar {
+  position: absolute;
+  z-index: 3;
+  inset: auto 14px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.counter {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 9px 12px;
+  color: #fff4df;
+  border: 1px solid rgba(243, 209, 154, .4);
+  border-radius: 999px;
+  background: rgba(38, 9, 22, .8);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+}
+
+.counterDivider { margin-inline: 3px; color: #e8b679; }
+
+.controls { display: flex; flex: 0 0 auto; gap: 5px; }
+
+.controls button {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #fff4df;
+  border: 1px solid rgba(243, 209, 154, .5);
+  border-radius: 50%;
+  background: rgba(38, 9, 22, .84);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .2s, border-color .2s;
+}
+
+.controls button:focus-visible { outline: 3px solid #ffd183; outline-offset: 3px; }
+.controls button:active { background: #74394b; }
+.controls svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.controls .playIcon { fill: currentColor; stroke: none; }
+
+.screenReaderOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (hover: hover) {
+  .controls button:hover { border-color: #f5c987; background: #633046; }
+}
+
+@media (max-width: 760px) {
+  .slide img { object-position: center 30%; }
+  .controlBar { inset: auto 10px 10px; gap: 8px; }
+  .counter { padding: 8px 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide, .controls button { transition: none; }
+}
+
+@media print {
+  .controlBar { display: none; }
+  .slide { transition: none; }
+  .slide:not(.active) { display: none; }
+}

@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { rsvpDetailsSchema } from "../domain/rsvp.js";
 import { getDatabasePool } from "./database-rsvps.js";
+import type { WeddingSide } from "../domain/types.js";
+import { requireWeddingSide } from "../domain/wedding-side.js";
 
 export const coordinatorRsvpSubmissionSchema = rsvpDetailsSchema.safeExtend({
   invitationId: z.string().uuid(),
@@ -14,12 +16,13 @@ export type CoordinatorRsvpSaveResult =
   | { kind: "stale" | "not_found" | "invalid" };
 
 /** The dedicated, audited SQL operation is the only path that bypasses the guest cutoff. */
-export async function saveDatabaseCoordinatorRSVP(input: CoordinatorRsvpSubmission): Promise<CoordinatorRsvpSaveResult> {
+export async function saveDatabaseCoordinatorRSVP(input: CoordinatorRsvpSubmission, side: WeddingSide = "groom"): Promise<CoordinatorRsvpSaveResult> {
+  requireWeddingSide(side);
   const parsed = coordinatorRsvpSubmissionSchema.parse(input);
   const { invitationId, expectedUpdatedAt, ...details } = parsed;
   const { rows } = await getDatabasePool().query<{ outcome: string; updated_at: Date | string | null }>(
-    "select outcome, updated_at from wedding.save_coordinator_rsvp($1::uuid, $2::jsonb, $3::timestamptz)",
-    [invitationId, JSON.stringify(details), expectedUpdatedAt]
+    "select outcome, updated_at from wedding.save_coordinator_rsvp($1::uuid, $2::jsonb, $3::timestamptz, $4::text)",
+    [invitationId, JSON.stringify(details), expectedUpdatedAt, side]
   );
   const row = rows[0];
   if (row?.outcome === "saved" && row.updated_at) {

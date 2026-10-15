@@ -7,9 +7,9 @@ if (process.env.SMOKE_BASE_URL && process.env.SMOKE_BASE_URL !== origin) {
   throw new Error("The smoke test only supports the disposable loopback stack on port 3001.");
 }
 
-const password = process.env.COORDINATOR_PASSWORD;
+const password = process.env.COORDINATOR_GROOM_PASSWORD ?? process.env.COORDINATOR_PASSWORD;
 if (!password || password.length < 16) {
-  throw new Error("Load the local .env file with COORDINATOR_PASSWORD before running the smoke test.");
+  throw new Error("Load the local .env file with COORDINATOR_GROOM_PASSWORD or legacy COORDINATOR_PASSWORD before running the smoke test.");
 }
 
 async function request(path, label, options = {}) {
@@ -57,22 +57,22 @@ const home = await request("/", "Private entry page");
 expectStatus(home, 200, "Private entry page");
 assert.match(await home.text(), /personal link/i, "The entry page should explain private links.");
 
-const forbidden = await request("/api/coordinator/login", "Cross-origin login", {
+const forbidden = await request("/api/coordinator/g/login", "Cross-origin login", {
   ...jsonPost({ password }),
   headers: { "Content-Type": "application/json", Origin: "https://other.example" }
 });
 expectStatus(forbidden, 403, "Cross-origin login");
 
-const login = await request("/api/coordinator/login", "Coordinator login", jsonPost({ password }));
+const login = await request("/api/coordinator/g/login", "Coordinator login", jsonPost({ password }));
 expectStatus(login, 200, "Coordinator login");
 assert.equal((await json(login, "Coordinator login")).ok, true);
 const cookie = login.headers.get("set-cookie")?.split(";", 1)[0];
 assert.ok(cookie?.startsWith("shaadi_coordinator_session="), "Coordinator session cookie is missing.");
 
-const workspace = await request("/coordinator", "Coordinator workspace", { headers: { Cookie: cookie } });
+const workspace = await request("/coordinator/g", "Coordinator workspace", { headers: { Cookie: cookie } });
 expectStatus(workspace, 200, "Coordinator workspace");
 
-const issue = await request("/api/coordinator/invitations", "Create invitation", jsonPost({
+const issue = await request("/api/coordinator/g/invitations", "Create invitation", jsonPost({
   householdNameEn: "Smoke Household",
   householdNameHi: "परीक्षण परिवार",
   preferredLocale: "en",
@@ -85,10 +85,10 @@ assert.equal(issued.ok, true);
 assert.match(issued.invitationId, /^[0-9a-f-]{36}$/i);
 const inviteUrl = new URL(issued.invitationUrl);
 assert.equal(inviteUrl.origin, origin, "Invitation URL must use the public loopback origin.");
-assert.match(inviteUrl.pathname, /^\/i\/[A-Za-z0-9_-]{16,128}$/);
-const token = inviteUrl.pathname.slice(3);
+assert.match(inviteUrl.pathname, /^\/i\/g\/[A-Za-z0-9_-]{16,128}$/);
+const token = inviteUrl.pathname.split("/").at(-1);
 
-const invitationRecords = await request("/coordinator/invitations", "Invitation records", { headers: { Cookie: cookie } });
+const invitationRecords = await request("/coordinator/g/invitations", "Invitation records", { headers: { Cookie: cookie } });
 expectStatus(invitationRecords, 200, "Invitation records");
 assert.ok(!(await invitationRecords.text()).includes(token), "Coordinator records must not disclose the raw invitation token.");
 
@@ -127,7 +127,7 @@ assert.equal(saved.mode, "database");
 assert.match(saved.entryPass?.qrPayload ?? "", /^shaadi-entry:v1:[A-Za-z0-9_-]{43}$/);
 const passToken = saved.entryPass.qrPayload.slice("shaadi-entry:v1:".length);
 
-const responsePage = await request("/coordinator/responses", "Hospitality notes", { headers: { Cookie: cookie } });
+const responsePage = await request("/coordinator/g/responses", "Hospitality notes", { headers: { Cookie: cookie } });
 expectStatus(responsePage, 200, "Hospitality notes");
 assert.match(await responsePage.text(), /Nut allergy/, "The coordinator must be able to read guest needs.");
 
@@ -139,21 +139,21 @@ const manualInput = {
   comfortNote: "Step-free entrance",
   expectedUpdatedAt: saved.updatedAt
 };
-const anonymousManual = await request("/api/coordinator/rsvp", "Anonymous manual RSVP", jsonPost(manualInput));
+const anonymousManual = await request("/api/coordinator/g/rsvp", "Anonymous manual RSVP", jsonPost(manualInput));
 expectStatus(anonymousManual, 401, "Anonymous manual RSVP");
-const crossOriginManual = await request("/api/coordinator/rsvp", "Cross-origin manual RSVP", {
+const crossOriginManual = await request("/api/coordinator/g/rsvp", "Cross-origin manual RSVP", {
   ...jsonPost(manualInput, cookie),
   headers: { "Content-Type": "application/json", Origin: "https://other.example", Cookie: cookie }
 });
 expectStatus(crossOriginManual, 403, "Cross-origin manual RSVP");
-const manual = await request("/api/coordinator/rsvp", "Phone RSVP", jsonPost(manualInput, cookie));
+const manual = await request("/api/coordinator/g/rsvp", "Phone RSVP", jsonPost(manualInput, cookie));
 expectStatus(manual, 200, "Phone RSVP");
 const manuallySaved = await json(manual, "Phone RSVP");
 assert.equal(manuallySaved.ok, true);
 assert.ok(!JSON.stringify(manuallySaved).includes(token), "Manual responses must not expose invitation credentials.");
-const staleManual = await request("/api/coordinator/rsvp", "Stale RSVP correction", jsonPost(manualInput, cookie));
+const staleManual = await request("/api/coordinator/g/rsvp", "Stale RSVP correction", jsonPost(manualInput, cookie));
 expectStatus(staleManual, 409, "Stale RSVP correction");
-const correctedPage = await request("/coordinator/responses", "Corrected hospitality notes", { headers: { Cookie: cookie } });
+const correctedPage = await request("/coordinator/g/responses", "Corrected hospitality notes", { headers: { Cookie: cookie } });
 expectStatus(correctedPage, 200, "Corrected hospitality notes");
 assert.match(await correctedPage.text(), /Step-free entrance/);
 
@@ -164,7 +164,7 @@ assert.match(calendarText, /BEGIN:VCALENDAR/);
 assert.ok(!calendarText.includes(token), "Calendar file must not contain the invitation token.");
 assert.ok(!calendarText.includes("\\\\n"), "Calendar descriptions must not contain a double-escaped newline.");
 
-const checkIn = await request("/api/coordinator/check-in", "Gate check-in", jsonPost({
+const checkIn = await request("/api/coordinator/g/check-in", "Gate check-in", jsonPost({
   passToken,
   eventId: "test-event"
 }, cookie));
@@ -174,16 +174,17 @@ assert.equal((await json(checkIn, "Gate check-in")).outcome, "checked_in");
 // Only this disposable fixture's deadline is changed, and it is restored before
 // the rest of the flow. Guest writes must close while authenticated corrections
 // remain available to coordinators who receive a late phone/WhatsApp response.
-const content = await request("/api/coordinator/content", "Read test content", { headers: { Cookie: cookie } });
+const content = await request("/api/coordinator/g/content", "Read test content", { headers: { Cookie: cookie } });
 expectStatus(content, 200, "Read test content");
-const originalContent = (await json(content, "Read test content")).configuration;
+const { side: ownerSide, ...originalContent } = (await json(content, "Read test content")).configuration;
+assert.equal(ownerSide ?? "groom", "groom");
 let cutoffChanged = false;
 try {
   const closedContent = {
     ...originalContent,
     settings: { ...originalContent.settings, canEditUntil: new Date(Date.now() - 60_000).toISOString() }
   };
-  const closeWindow = await request("/api/coordinator/content", "Close guest RSVP window", {
+  const closeWindow = await request("/api/coordinator/g/content", "Close guest RSVP window", {
     ...jsonPost(closedContent, cookie), method: "PUT"
   });
   expectStatus(closeWindow, 200, "Close guest RSVP window");
@@ -193,23 +194,24 @@ try {
     attendances: [{ eventId: "test-event", attending: false, adults: 0, children: 0 }]
   }));
   expectStatus(lateGuest, 422, "Late guest RSVP");
-  const lateManual = await request("/api/coordinator/rsvp", "Late phone correction", jsonPost({
+  const lateManual = await request("/api/coordinator/g/rsvp", "Late phone correction", jsonPost({
     ...manualInput,
     status: "declined", comfortNote: "", declineMessage: "Called to decline",
     attendances: [{ eventId: "test-event", attending: false, adults: 0, children: 0 }],
     expectedUpdatedAt: manuallySaved.updatedAt
   }, cookie));
   expectStatus(lateManual, 200, "Late phone correction");
-  const invalidatedPass = await request("/api/coordinator/check-in", "Corrected RSVP invalidates pass", jsonPost({
+  const invalidatedPass = await request("/api/coordinator/g/check-in", "Corrected RSVP invalidates pass", jsonPost({
     passToken, eventId: "test-event"
   }, cookie));
   expectStatus(invalidatedPass, 404, "Corrected RSVP invalidates pass");
 } finally {
   if (cutoffChanged) {
-    const latest = await request("/api/coordinator/content", "Read latest test content", { headers: { Cookie: cookie } });
+    const latest = await request("/api/coordinator/g/content", "Read latest test content", { headers: { Cookie: cookie } });
     expectStatus(latest, 200, "Read latest test content");
-    const current = (await json(latest, "Read latest test content")).configuration;
-    const restore = await request("/api/coordinator/content", "Restore test RSVP window", {
+    const { side: currentSide, ...current } = (await json(latest, "Read latest test content")).configuration;
+    assert.equal(currentSide ?? "groom", "groom");
+    const restore = await request("/api/coordinator/g/content", "Restore test RSVP window", {
       ...jsonPost({ ...current, settings: { ...current.settings, canEditUntil: originalContent.settings.canEditUntil } }, cookie),
       method: "PUT"
     });
@@ -217,7 +219,7 @@ try {
   }
 }
 
-const revoke = await request("/api/coordinator/invitations/revoke", "Revoke invitation", jsonPost({
+const revoke = await request("/api/coordinator/g/invitations/revoke", "Revoke invitation", jsonPost({
   invitationId: issued.invitationId
 }, cookie));
 expectStatus(revoke, 200, "Revoke invitation");
@@ -225,17 +227,17 @@ expectStatus(revoke, 200, "Revoke invitation");
 const revokedPage = await request(inviteUrl.pathname, "Revoked invitation");
 expectStatus(revokedPage, 404, "Revoked invitation");
 
-const revokedPass = await request("/api/coordinator/check-in", "Revoked entry pass", jsonPost({
+const revokedPass = await request("/api/coordinator/g/check-in", "Revoked entry pass", jsonPost({
   passToken,
   eventId: "test-event"
 }, cookie));
 expectStatus(revokedPass, 404, "Revoked entry pass");
-const revokedCorrection = await request("/api/coordinator/rsvp", "Revoked RSVP correction", jsonPost({
+const revokedCorrection = await request("/api/coordinator/g/rsvp", "Revoked RSVP correction", jsonPost({
   ...manualInput, expectedUpdatedAt: null
 }, cookie));
 expectStatus(revokedCorrection, 404, "Revoked RSVP correction");
 
-const erase = await request("/api/coordinator/invitations/rsvp/delete", "Erase revoked RSVP", jsonPost({
+const erase = await request("/api/coordinator/g/invitations/rsvp/delete", "Erase revoked RSVP", jsonPost({
   invitationId: issued.invitationId
 }, cookie));
 expectStatus(erase, 200, "Erase revoked RSVP");

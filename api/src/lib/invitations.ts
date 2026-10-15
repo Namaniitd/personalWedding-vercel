@@ -17,7 +17,8 @@ import {
   type MappedWeddingEvent
 } from "../domain/wedding-content.js";
 import { createWeddingContact } from "../domain/wedding-contact.js";
-import type { Invitation, RSVPInput, ResolvedInvitation } from "../domain/types.js";
+import type { Invitation, RSVPInput, ResolvedInvitation, WeddingSide } from "../domain/types.js";
+import { requireWeddingSide } from "../domain/wedding-side.js";
 
 type LiveEventRow = DatabaseWeddingEventRow;
 
@@ -83,12 +84,15 @@ function validHouseholdName(value: unknown) {
   return typeof value === "string" && value.trim().length >= 2 && value.trim().length <= 100;
 }
 
-export async function resolveInvitation(token: string): Promise<ResolvedInvitation | null> {
+export async function resolveInvitation(token: string, expectedSide?: WeddingSide): Promise<ResolvedInvitation | null> {
   if (!invitationTokenSchema.safeParse(token).success) return null;
+  if (expectedSide !== undefined) requireWeddingSide(expectedSide);
 
   const mode = getInvitationStoreMode();
-  if (mode === "database") return resolveDatabaseInvitation(token);
+  if (mode === "database") return resolveDatabaseInvitation(token, expectedSide);
   if (mode !== "hosted") return null;
+  // The historical hosted store has no separate bride workspace.
+  if (expectedSide === "bride") return null;
 
   const client = adminClient();
   const tokenHash = invitationTokenDigest(token);
@@ -173,6 +177,7 @@ export async function resolveInvitation(token: string): Promise<ResolvedInvitati
   return {
     invitation: {
       token,
+      side: "groom",
       householdName: { en: row.household_name_en, hi: row.household_name_hi },
       preferredLocale: row.preferred_locale,
       eventIds: invitationEvents.map((event) => event.id),

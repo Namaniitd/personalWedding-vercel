@@ -7,6 +7,7 @@ import { privateEmpty, privateJson } from "@/lib/server/private-response";
 import { takeRateLimit } from "@/lib/server/rate-limit";
 import {
   clientNetworkIdentifier,
+  coordinatorRequestSide,
   bearerTokenRateLimitDigest,
   isAuthorizedCoordinatorRequest,
   isSameOriginRequest,
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await forwardBackendJson(await requestBackend("/v1/coordinator/check-in", {
+      side: coordinatorRequestSide(request),
       method: "POST",
       body: parsed.data
     }));

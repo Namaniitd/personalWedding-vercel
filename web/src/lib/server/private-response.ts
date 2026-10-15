@@ -30,6 +30,13 @@ export function privateEmpty(status: number, extraHeaders?: HeadersInit) {
   return new NextResponse(null, { status, headers: headers(extraHeaders) });
 }
 
-export function privateBinary(body: ArrayBuffer, contentType: string) {
-  return new NextResponse(body, { headers: headers({ "Content-Type": contentType }) });
+export function privateBinary(
+  body: ArrayBuffer | ReadableStream<Uint8Array> | null,
+  contentType: string,
+  status = 200,
+  extraHeaders?: HeadersInit
+) {
+  const responseHeaders = headers(extraHeaders);
+  responseHeaders.set("Content-Type", contentType);
+  return new NextResponse(body, { status, headers: responseHeaders });
 }

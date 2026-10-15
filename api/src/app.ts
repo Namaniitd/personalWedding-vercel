@@ -30,6 +30,8 @@ import { sharedRateLimitSchema, takeDatabaseRateLimit } from "./lib/database-rat
 import { coordinatorRsvpSubmissionSchema, saveDatabaseCoordinatorRSVP } from "./lib/database-coordinator-rsvps.js";
 import { coordinatorSessionRequestSchema } from "./domain/coordinator-session.js";
 import { manageDatabaseCoordinatorSession } from "./lib/database-coordinator-sessions.js";
+import { weddingSideSchema } from "./domain/wedding-side.js";
+import type { WeddingSide } from "./domain/types.js";
 
 const PRIVATE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -39,7 +41,7 @@ const PRIVATE_HEADERS = {
   "X-Robots-Tag": "noindex, nofollow, noarchive"
 } as const;
 
-const invitationLookupSchema = z.object({ token: invitationTokenSchema }).strict();
+const invitationLookupSchema = z.object({ token: invitationTokenSchema, side: weddingSideSchema.optional() }).strict();
 
 function privateJson(body: unknown, status = 200, extraHeaders?: HeadersInit) {
   const headers = new Headers(PRIVATE_HEADERS);
@@ -135,7 +137,7 @@ async function resolveInvitationRequest(request: Request) {
     return privateJson({ error: "The invitation service is temporarily unavailable." }, 503);
   }
   try {
-    const resolved = await resolveInvitation(parsed.data.token);
+    const resolved = await resolveInvitation(parsed.data.token, parsed.data.side);
     if (!resolved) return privateJson({ error: "This invitation link is no longer active." }, 404);
     return privateJson({ ok: true, resolved });
   } catch {
@@ -192,12 +194,12 @@ function coordinatorUnavailable() {
   return privateJson({ error: "Not found." }, 404);
 }
 
-async function coordinatorWorkspaceRequest() {
+async function coordinatorWorkspaceRequest(side: WeddingSide) {
   if (!coordinatorAvailable()) return coordinatorUnavailable();
   try {
     const [issuerOptions, invitations] = await Promise.all([
-      getDatabaseInvitationIssuerOptions(),
-      listDatabaseCoordinatorInvitations()
+      getDatabaseInvitationIssuerOptions(side),
+      listDatabaseCoordinatorInvitations(side)
     ]);
     return privateJson({ ok: true, issuerOptions, invitations });
   } catch {
@@ -205,25 +207,25 @@ async function coordinatorWorkspaceRequest() {
   }
 }
 
-async function coordinatorContentRequest() {
+async function coordinatorContentRequest(side: WeddingSide) {
   if (!coordinatorAvailable()) return coordinatorUnavailable();
   try {
-    return privateJson({ ok: true, configuration: await loadDatabaseWeddingContentEditor() });
+    return privateJson({ ok: true, configuration: await loadDatabaseWeddingContentEditor(side) });
   } catch {
     return privateJson({ error: "Wedding content is temporarily unavailable." }, 503);
   }
 }
 
-async function coordinatorInvitationsRequest() {
+async function coordinatorInvitationsRequest(side: WeddingSide) {
   if (!coordinatorAvailable()) return coordinatorUnavailable();
   try {
-    return privateJson({ ok: true, invitations: await listDatabaseCoordinatorInvitations() });
+    return privateJson({ ok: true, invitations: await listDatabaseCoordinatorInvitations(side) });
   } catch {
     return privateJson({ error: "The coordinator workspace is temporarily unavailable." }, 503);
   }
 }
 
-async function saveCoordinatorContentRequest(request: Request) {
+async function saveCoordinatorContentRequest(request: Request, side: WeddingSide) {
   if (!coordinatorAvailable()) return coordinatorUnavailable();
   const body = await readJsonBody(request, 512 * 1024);
   if (!body.ok) return jsonBodyError(body, "Please review the wedding content and try again.");
@@ -231,7 +233,7 @@ async function saveCoordinatorContentRequest(request: Request) {
   if (!parsed.success) return privateJson({ error: "Please review the wedding content and try again." }, 400);
 
   try {
-    const result = await saveDatabaseWeddingContentEditor(parsed.data);
+    const result = await saveDatabaseWeddingContentEditor(parsed.data, side);
     if (result.kind === "saved") return privateJson({ ok: true, configuration: result.snapshot });
     if (result.kind === "stale") {
       return privateJson({
@@ -248,6 +250,9 @@ async function saveCoordinatorContentRequest(request: Request) {
     if (result.kind === "link_expiry_conflict") {
       return privateJson({ error: "The new RSVP deadline would fall after an existing invitation link expires. Reissue affected links before moving the deadline that far." }, 409);
     }
+    if (result.kind === "event_side_conflict") {
+      return privateJson({ error: "An event identifier is unavailable. Create a new event before saving." }, 409);
+    }
     if (result.kind === "events_missing") {
       return privateJson({ error: "Existing events cannot be deleted here. Archive them instead." }, 409);
     }
@@ -257,27 +262,37 @@ async function saveCoordinatorContentRequest(request: Request) {
   }
 }
 
-async function issueInvitationRequest(request: Request) {
+async function issueInvitationRequest(request: Request, side: WeddingSide) {
   if (!coordinatorAvailable()) return coordinatorUnavailable();
   const body = await readJsonBody(request, 8 * 1024);
   if (!body.ok) return jsonBodyError(body, "Please review the invitation details and try again.");
-  const parsed = databaseInvitationIssueSchema.safeParse(body.value);
+  // The legacy DTO defaults to groom. New side-specific endpoints instead
+  // default to their authenticated owner's primary contact, while preserving
+  // an explicitly chosen alternate contact inside that same workspace.
+  const input = body.value && typeof body.value === "object" && !Array.isArray(body.value)
+    && !Object.hasOwn(body.value, "contactRole")
+    ? { ...body.value, contactRole: side }
+    : body.value;
+  const parsed = databaseInvitationIssueSchema.safeParse(input);
   if (!parsed.success) return privateJson({ error: "Please review the invitation details and try again." }, 400);
 
   try {
-    const validation = await validateDatabaseInvitationIssue(parsed.data);
+    const validation = await validateDatabaseInvitationIssue(parsed.data, side);
     if (!validation.ok) return privateJson({ error: validation.message }, 422);
-    const contactValidation = await validateDatabaseInvitationContactRole(validation.value.contactRole);
+    const contactValidation = await validateDatabaseInvitationContactRole(validation.value.contactRole, side);
     if (!contactValidation.ok) return privateJson({ error: contactValidation.message }, 422);
 
-    const issued = await issueDatabaseInvitation(validation.value);
-    return privateJson({ ok: true, issued });
+    const issued = await issueDatabaseInvitation(validation.value, side);
+    // The previous frontend validates this response with a strict schema.
+    // Keep its unscoped groom contract until that frontend is upgraded.
+    const { side: _issuedSide, ...legacyIssued } = issued;
+    return privateJson({ ok: true, issued: request.headers.has("x-wedding-side") ? issued : legacyIssued });
   } catch {
     return privateJson({ error: "The invitation service is temporarily unavailable." }, 503);
   }
 }
 
-async function revokeInvitationRequest(request: Request) {
+async function revokeInvitationRequest(request: Request, side: WeddingSide) {
   if (!coordinatorAvailable()) return coordinatorUnavailable();
   const body = await readJsonBody(request, 2 * 1024);
   if (!body.ok) return jsonBodyError(body, "Please review the invitation and try again.");
@@ -285,7 +300,7 @@ async function revokeInvitationRequest(request: Request) {
   if (!parsed.success) return privateJson({ error: "Please review the invitation and try again." }, 400);
 
   try {
-    const revoked = await revokeDatabaseInvitation(parsed.data.invitationId);
+    const revoked = await revokeDatabaseInvitation(parsed.data.invitationId, side);
     if (!revoked) return coordinatorUnavailable();
     return privateJson({ ok: true, invitationId: revoked.id, revokedAt: revoked.revokedAt });
   } catch {
@@ -293,7 +308,7 @@ async function revokeInvitationRequest(request: Request) {
   }
 }
 
-async function deleteRsvpRequest(request: Request) {
+async function deleteRsvpRequest(request: Request, side: WeddingSide) {
   if (!coordinatorAvailable()) return coordinatorUnavailable();
   const body = await readJsonBody(request, 2 * 1024);
   if (!body.ok) return jsonBodyError(body, "Please review the invitation and try again.");
@@ -301,7 +316,7 @@ async function deleteRsvpRequest(request: Request) {
   if (!parsed.success) return privateJson({ error: "Please review the invitation and try again." }, 400);
 
   try {
-    const result = await deleteDatabaseRSVPForRevokedInvitation(parsed.data.invitationId);
+    const result = await deleteDatabaseRSVPForRevokedInvitation(parsed.data.invitationId, side);
     if (result.kind === "deleted" || result.kind === "already_deleted") {
       return privateJson({ ok: true, invitationId: result.id, rsvpDeletedAt: result.rsvpDeletedAt });
     }
@@ -314,14 +329,14 @@ async function deleteRsvpRequest(request: Request) {
   }
 }
 
-async function checkInRequest(request: Request) {
+async function checkInRequest(request: Request, side: WeddingSide) {
   if (!coordinatorAvailable()) return privateJson({ error: "Entry pass is unavailable." }, 404);
   const body = await readJsonBody(request, 2 * 1024);
   if (!body.ok) return jsonBodyError(body, "Please scan the entry pass again.");
   const parsed = databaseEntryPassCheckInSchema.safeParse(body.value);
   if (!parsed.success) return privateJson({ error: "Entry pass is unavailable." }, 404);
 
-  const passLimit = await takeRateLimit(`entry-check-in:pass:${databaseEntryPassTokenDigest(parsed.data.passToken)}`, 30);
+  const passLimit = await takeRateLimit(`entry-check-in:${side}:pass:${databaseEntryPassTokenDigest(parsed.data.passToken)}`, 30);
   if (!passLimit.allowed) {
     return privateJson({ error: "Please wait a moment before scanning this pass again." }, 429, {
       "Retry-After": String(passLimit.retryAfterSeconds)
@@ -329,7 +344,7 @@ async function checkInRequest(request: Request) {
   }
 
   try {
-    const result = await checkInDatabaseEntryPass(parsed.data);
+    const result = await checkInDatabaseEntryPass(parsed.data, side);
     if (result.kind === "not_found") return privateJson({ error: "Entry pass is unavailable." }, 404);
     if (result.kind === "not_eligible") {
       return privateJson({ error: "This household is not confirmed for the selected celebration.", code: "not_eligible" }, 422);
@@ -349,14 +364,14 @@ async function checkInRequest(request: Request) {
   }
 }
 
-async function coordinatorRsvpRequest(request: Request) {
+async function coordinatorRsvpRequest(request: Request, side: WeddingSide) {
   if (!coordinatorAvailable()) return coordinatorUnavailable();
   const body = await readJsonBody(request, 16 * 1024);
   if (!body.ok) return jsonBodyError(body, "Please review the RSVP details and try again.");
   const parsed = coordinatorRsvpSubmissionSchema.safeParse(body.value);
   if (!parsed.success) return privateJson({ error: "Please review the RSVP details and try again." }, 400);
   try {
-    const result = await saveDatabaseCoordinatorRSVP(parsed.data);
+    const result = await saveDatabaseCoordinatorRSVP(parsed.data, side);
     if (result.kind === "saved") return privateJson({ ok: true, updatedAt: result.updatedAt });
     if (result.kind === "stale") {
       return privateJson({ error: "This RSVP changed in another session. Reload its latest response before saving." }, 409);
@@ -432,7 +447,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
 
   if (pathname === "/v1/status") {
     const mode = getInvitationStoreMode();
-    return privateJson({ mode, coordinatorAvailable: mode === "database" });
+    return privateJson({ mode, coordinatorAvailable: mode === "database", sideIsolation: mode === "database" });
   }
   if (pathname === "/v1/readyz") return readinessRequest();
   if (pathname === "/v1/security/rate-limit") return sharedRateLimitRequest(request);
@@ -450,17 +465,23 @@ export async function handleApiRequest(request: Request): Promise<Response> {
   }
   if (pathname === "/v1/invitations/resolve") return resolveInvitationRequest(request);
   if (pathname === "/v1/rsvp") return submitRsvpRequest(request);
-  if (pathname === "/v1/coordinator/workspace") return coordinatorWorkspaceRequest();
+  let side: WeddingSide = "groom";
+  if (pathname.startsWith("/v1/coordinator/")) {
+    const parsedSide = weddingSideSchema.safeParse(request.headers.get("x-wedding-side") ?? "groom");
+    if (!parsedSide.success) return privateJson({ error: "Invalid wedding side." }, 400);
+    side = parsedSide.data;
+  }
+  if (pathname === "/v1/coordinator/workspace") return coordinatorWorkspaceRequest(side);
   if (pathname === "/v1/coordinator/content") {
-    return request.method === "GET" ? coordinatorContentRequest() : saveCoordinatorContentRequest(request);
+    return request.method === "GET" ? coordinatorContentRequest(side) : saveCoordinatorContentRequest(request, side);
   }
   if (pathname === "/v1/coordinator/invitations") {
-    return request.method === "GET" ? coordinatorInvitationsRequest() : issueInvitationRequest(request);
+    return request.method === "GET" ? coordinatorInvitationsRequest(side) : issueInvitationRequest(request, side);
   }
-  if (pathname === "/v1/coordinator/invitations/revoke") return revokeInvitationRequest(request);
-  if (pathname === "/v1/coordinator/invitations/rsvp/delete") return deleteRsvpRequest(request);
-  if (pathname === "/v1/coordinator/check-in") return checkInRequest(request);
-  if (pathname === "/v1/coordinator/rsvp") return coordinatorRsvpRequest(request);
+  if (pathname === "/v1/coordinator/invitations/revoke") return revokeInvitationRequest(request, side);
+  if (pathname === "/v1/coordinator/invitations/rsvp/delete") return deleteRsvpRequest(request, side);
+  if (pathname === "/v1/coordinator/check-in") return checkInRequest(request, side);
+  if (pathname === "/v1/coordinator/rsvp") return coordinatorRsvpRequest(request, side);
 
   return privateJson({ error: "Not found." }, 404);
 }

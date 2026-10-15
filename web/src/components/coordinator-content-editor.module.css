@@ -777,6 +777,91 @@
   margin-top: 16px;
 }
 
+.popupSuggestions {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.popupSuggestions > span,
+.popupFieldFooter > span {
+  color: var(--content-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.popupSuggestions > button,
+.popupFieldActions > button {
+  min-height: 44px;
+  padding: 8px 12px;
+  color: var(--content-wine);
+  border: 1px solid #dfd5ca;
+  border-radius: 6px;
+  background: #fffdf8;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.popupSuggestions > button:disabled,
+.popupFieldActions > button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.popupSuggestions > button:focus-visible,
+.popupFieldActions > button:focus-visible {
+  outline: 3px solid rgba(119, 47, 63, .3);
+  outline-offset: 2px;
+}
+
+.popupFieldList {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.popupFieldCard {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--content-line);
+  border-radius: 8px;
+  background: #fafbf7;
+}
+
+.popupFieldHeader {
+  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.popupFieldHeader > strong {
+  color: var(--content-ink);
+  font-size: 12px;
+}
+
+.popupFieldActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.popupFieldFooter {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.popupFieldFooter :global(.admin-outline-button) {
+  min-height: 44px;
+}
+
 .defaultLimits {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(92px, .32fr) minmax(92px, .32fr);

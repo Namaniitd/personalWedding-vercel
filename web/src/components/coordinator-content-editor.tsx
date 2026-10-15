@@ -1,14 +1,21 @@
 "use client";
 
+import { coordinatorApiPath } from "@/lib/wedding-side";
+
 import { type FormEvent, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DEFAULT_INVITATION_LEAD } from "@/lib/invitation-introduction";
 
 import type {
   ContactRole,
   DatabaseWeddingContentContact,
   DatabaseWeddingContentEvent,
   DatabaseWeddingContentSettings,
-  DatabaseWeddingContentSnapshot
+  DatabaseWeddingContentSnapshot,
+  Locale,
+  LocalizedText,
+  WeddingEventPopupDetail,
+  WeddingSide
 } from "@/lib/types";
 
 import styles from "./coordinator-content-editor.module.css";
@@ -35,6 +42,13 @@ type SaveResponse = {
 };
 
 const MAX_GUEST_CONTENT_CHARS = 48_000;
+const MAX_EVENT_POPUP_FIELDS = 8;
+const popupFieldSuggestions = [
+  { en: "Schedule", hi: "कार्यक्रम" },
+  { en: "Transport", hi: "परिवहन" },
+  { en: "Parking", hi: "पार्किंग" },
+  { en: "Dress code", hi: "परिधान" }
+];
 
 const sectionCopy: Array<{ id: ContentSection; label: string; description: string }> = [
   { id: "settings", label: "Wedding details", description: "Names, timing, RSVP window and invitation notice" },
@@ -62,7 +76,12 @@ function normalizeSnapshot(value: CoordinatorContentSnapshot): CoordinatorConten
       guestContent: value.settings.guestContent ?? null
     },
     contacts: value.contacts.map((contact) => ({ ...contact })),
-    events: value.events.map((event) => ({ ...event }))
+    events: value.events.map((event) => ({
+      ...event,
+      descriptionEn: textValue(event.descriptionEn),
+      descriptionHi: textValue(event.descriptionHi),
+      popupDetails: event.popupDetails ?? []
+    }))
   };
 }
 
@@ -118,16 +137,16 @@ function eventIdFrom(value: string) {
   return normalized || "event";
 }
 
-function nextEventId(events: CoordinatorContentEvent[]) {
+function nextEventId(events: CoordinatorContentEvent[], side: WeddingSide) {
   const used = new Set(events.map((event) => event.id));
-  const stem = "event";
+  const stem = `${side === "bride" ? "b" : "g"}-event`;
   let number = events.length + 1;
   while (used.has(`${stem}-${number}`)) number += 1;
   return `${stem}-${number}`;
 }
 
-function blankEvent(events: CoordinatorContentEvent[]): CoordinatorContentEvent {
-  const id = nextEventId(events);
+function blankEvent(events: CoordinatorContentEvent[], side: WeddingSide): CoordinatorContentEvent {
+  const id = nextEventId(events, side);
   const nextOrder = events.reduce((largest, event) => Math.max(largest, event.displayOrder), 0) + 1;
   return {
     id,
@@ -153,6 +172,9 @@ function blankEvent(events: CoordinatorContentEvent[]): CoordinatorContentEvent 
     dressCodeHi: "",
     practicalNoteEn: "",
     practicalNoteHi: "",
+    descriptionEn: "",
+    descriptionHi: "",
+    popupDetails: [],
     category: "celebration",
     published: false,
     displayOrder: nextOrder,
@@ -199,6 +221,36 @@ function parseGuestContent(value: string): { value: unknown | null } | { error: 
   }
 }
 
+function isContentObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function invitationIntroduction(value: unknown): LocalizedText {
+  const hero = isContentObject(value) && isContentObject(value.hero) ? value.hero : null;
+  const lead = hero && isContentObject(hero.invitationLead) ? hero.invitationLead : null;
+  return {
+    en: typeof lead?.en === "string" ? lead.en : DEFAULT_INVITATION_LEAD.en,
+    hi: typeof lead?.hi === "string" ? lead.hi : DEFAULT_INVITATION_LEAD.hi
+  };
+}
+
+function canEditInvitationIntroduction(value: unknown) {
+  if (!isContentObject(value) || value.hero === undefined) return true;
+  if (!isContentObject(value.hero)) return false;
+  const lead = value.hero.invitationLead;
+  return lead === undefined || (isContentObject(lead)
+    && (lead.en === undefined || typeof lead.en === "string")
+    && (lead.hi === undefined || typeof lead.hi === "string"));
+}
+
+function hasAdvancedGuestContent(value: unknown) {
+  if (!isContentObject(value)) return Boolean(value);
+  if (Object.keys(value).some((key) => key !== "hero")) return true;
+  return isContentObject(value.hero)
+    ? Object.keys(value.hero).some((key) => key !== "invitationLead")
+    : value.hero !== undefined;
+}
+
 function validateSnapshot(snapshot: CoordinatorContentSnapshot): string | null {
   const { settings } = snapshot;
   const requiredSettings: Array<[string, string]> = [
@@ -216,6 +268,10 @@ function validateSnapshot(snapshot: CoordinatorContentSnapshot): string | null {
   ];
   const missingSetting = requiredSettings.find(([, value]) => fieldIsBlank(value));
   if (missingSetting) return `${missingSetting[0]} is required.`;
+  const introduction = invitationIntroduction(settings.guestContent);
+  if (!introduction.en.trim() || !introduction.hi.trim()) {
+    return "Write the invitation introduction in both English and Hindi, or use the default wording.";
+  }
   if (!validIndianMobile(settings.coordinatorPhone)) {
     return "The coordinator fallback needs a valid Indian mobile number.";
   }
@@ -278,6 +334,23 @@ function validateSnapshot(snapshot: CoordinatorContentSnapshot): string | null {
     ];
     const missing = requiredEventFields.find(([, value]) => fieldIsBlank(value));
     if (missing) return `${missing[0]} is required for ${event.id}.`;
+    if (Boolean(event.descriptionEn.trim()) !== Boolean(event.descriptionHi.trim())) {
+      return `Add the description for ${event.titleEn || event.id} in both languages, or leave both blank.`;
+    }
+    if (event.descriptionEn.length > 2_400 || event.descriptionHi.length > 2_400) {
+      return `The description for ${event.titleEn || event.id} must be no longer than 2,400 characters per language.`;
+    }
+    if (event.popupDetails.length > MAX_EVENT_POPUP_FIELDS) {
+      return `${event.titleEn || event.id} can have up to ${MAX_EVENT_POPUP_FIELDS} popup fields.`;
+    }
+    for (const [index, detail] of event.popupDetails.entries()) {
+      if (fieldIsBlank(detail.label.en) || fieldIsBlank(detail.label.hi) || fieldIsBlank(detail.value.en) || fieldIsBlank(detail.value.hi)) {
+        return `Complete the label and content in both languages for popup field ${index + 1} in ${event.titleEn || event.id}, or remove it.`;
+      }
+      if (detail.label.en.length > 120 || detail.label.hi.length > 120 || detail.value.en.length > 1_200 || detail.value.hi.length > 1_200) {
+        return `Popup field ${index + 1} in ${event.titleEn || event.id} needs labels up to 120 characters and content up to 1,200 characters per language.`;
+      }
+    }
     const start = new Date(event.startAt);
     const end = new Date(event.endAt);
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) {
@@ -335,12 +408,41 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [latestConflict, setLatestConflict] = useState<CoordinatorContentSnapshot | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(Boolean(initial.settings.guestContent));
+  const [showAdvanced, setShowAdvanced] = useState(() => hasAdvancedGuestContent(initial.settings.guestContent));
 
   const initialEventIds = useMemo(() => new Set(initial.events.map((event) => event.id)), [initial.events]);
   const selectedEvent = draft.events.find((event) => event.id === selectedEventId) ?? draft.events[0] ?? null;
   const isDirty = serialize(draft) !== serialize(saved) || guestContentDraft !== savedGuestContent;
   const publishedCount = draft.events.filter((event) => event.published).length;
+  const parsedGuestContentDraft = useMemo(() => parseGuestContent(guestContentDraft), [guestContentDraft]);
+  const guestContentObject = "value" in parsedGuestContentDraft && isContentObject(parsedGuestContentDraft.value) ? parsedGuestContentDraft.value : {};
+  const introduction = invitationIntroduction(guestContentObject);
+  const introductionEditable = !("error" in parsedGuestContentDraft) && canEditInvitationIntroduction(guestContentObject);
+
+  function updateIntroduction(locale: Locale, value: string) {
+    if (!introductionEditable) return;
+    const hero = isContentObject(guestContentObject.hero) ? guestContentObject.hero : {};
+    const currentLead = isContentObject(hero.invitationLead) ? hero.invitationLead : {};
+    setGuestContentDraft(guestContentText({
+      ...guestContentObject,
+      hero: { ...hero, invitationLead: { ...currentLead, ...introduction, [locale]: value } }
+    }));
+    setNotice("");
+  }
+
+  function resetIntroduction() {
+    if (!introductionEditable) return;
+    const content = { ...guestContentObject };
+    if (isContentObject(content.hero)) {
+      const hero = { ...content.hero };
+      delete hero.invitationLead;
+      if (Object.keys(hero).length) content.hero = hero;
+      else delete content.hero;
+    }
+    setGuestContentDraft(Object.keys(content).length ? guestContentText(content) : "");
+    setNotice("Default introduction restored in this draft. Save to publish it.");
+    setError("");
+  }
 
   function updateSettings<Key extends keyof CoordinatorContentSettings>(key: Key, value: CoordinatorContentSettings[Key]) {
     setDraft((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
@@ -366,7 +468,7 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
   }
 
   function addEvent() {
-    const event = blankEvent(draft.events);
+    const event = blankEvent(draft.events, initialContent.side ?? "groom");
     setDraft((current) => ({ ...current, events: [...current.events, event] }));
     setSelectedEventId(event.id);
     setSection("events");
@@ -469,7 +571,7 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
 
     setIsSaving(true);
     try {
-      const response = await fetch("/api/coordinator/content", {
+      const response = await fetch(coordinatorApiPath("content"), {
         method: "PUT",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -599,6 +701,19 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
             </fieldset>
 
             <fieldset className={styles.fieldset}>
+              <legend className={styles.toggleLegend}>
+                <span>Invitation introduction</span>
+                <button type="button" className={styles.textButton} disabled={!introductionEditable} onClick={resetIntroduction}>Use default wording</button>
+              </legend>
+              <p className={styles.fieldsetCopy}>This appears above the couple names. Keep the default wording or write your own in both languages.</p>
+              {!introductionEditable && <p className={styles.fieldsetCopy}>Fix the introduction or hero in the advanced JSON editor below before editing these fields.</p>}
+              <div className={styles.bilingualGrid}>
+                <TextAreaField label="Invitation introduction" language="English" value={introduction.en} onChange={(value) => updateIntroduction("en", value)} maxLength={600} required disabled={!introductionEditable} />
+                <TextAreaField label="Invitation introduction" language="हिन्दी" lang="hi" value={introduction.hi} onChange={(value) => updateIntroduction("hi", value)} maxLength={600} required disabled={!introductionEditable} />
+              </div>
+            </fieldset>
+
+            <fieldset className={styles.fieldset}>
               <legend>Wedding and RSVP timing <span>IST (India)</span></legend>
               <div className={styles.threeColumnGrid}>
                 <DateTimeField label="Wedding moment" value={draft.settings.weddingMoment} onChange={(value) => updateSettings("weddingMoment", value)} required />
@@ -609,7 +724,7 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
 
             <fieldset className={styles.fieldset}>
               <legend>Coordinator fallback</legend>
-              <p className={styles.fieldsetCopy}>This is the primary groom reply-to shown when no active groom contact overrides it. Use a real Indian mobile number; it becomes a call and WhatsApp link for guests.</p>
+              <p className={styles.fieldsetCopy}>This is the primary {initialContent.side === "bride" ? "bride" : "groom"} reply-to shown when no active contact for this side overrides it. Use a real Indian mobile number; it becomes a call and WhatsApp link for guests.</p>
               <div className={styles.twoColumnGrid}>
                 <InputField label="Fallback name" value={draft.settings.coordinatorName} onChange={(value) => updateSettings("coordinatorName", value)} maxLength={80} required />
                 <InputField label="Fallback Indian mobile" helper="Example: 98765 43210 or +91 98765 43210" inputMode="tel" value={draft.settings.coordinatorPhone} onChange={(value) => updateSettings("coordinatorPhone", value)} maxLength={40} required />
@@ -769,7 +884,7 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
                 <article className={styles.contactCard} key={contact.role}>
                   <div className={styles.contactCardHeading}>
                     <div>
-                      <p>{contact.role === "groom" ? "Primary fallback" : "Optional reply-to"}</p>
+                      <p>{contact.role === (initialContent.side ?? "groom") ? "Primary fallback" : "Optional reply-to"}</p>
                       <h3>{contactLabel(contact.role)}</h3>
                     </div>
                     <label className={styles.switch}>
@@ -778,7 +893,7 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
                       <b>{contact.isActive ? "Active" : "Hidden"}</b>
                     </label>
                   </div>
-                  <p className={styles.contactHelp}>{contact.role === "groom" ? "An active groom contact overrides the coordinator fallback in Wedding details." : "Turn this on when guests should be able to contact the bride’s side directly."}</p>
+                  <p className={styles.contactHelp}>{contact.role === (initialContent.side ?? "groom") ? `An active ${contact.role} contact overrides the coordinator fallback in Wedding details.` : `Turn this on when guests should be able to contact the ${contact.role}’s side directly.`}</p>
                   <div className={styles.contactFields}>
                     <InputField label="Name" value={contact.name} onChange={(value) => updateContact(contact.role, { name: value })} maxLength={80} required />
                     <InputField label="Indian mobile" helper="Example: 98765 43210" inputMode="tel" value={contact.phone} onChange={(value) => updateContact(contact.role, { phone: value })} maxLength={40} required />
@@ -848,7 +963,8 @@ function TextAreaField({
   onChange,
   lang,
   maxLength,
-  required = false
+  required = false,
+  disabled = false
 }: {
   label: string;
   language?: string;
@@ -857,12 +973,13 @@ function TextAreaField({
   lang?: string;
   maxLength: number;
   required?: boolean;
+  disabled?: boolean;
 }) {
   const id = useId();
   return (
     <label className={styles.field} htmlFor={id}>
       <span>{label}{language ? <small>{language}</small> : null}</span>
-      <textarea id={id} lang={lang} value={value} onChange={(event) => onChange(event.target.value)} maxLength={maxLength} required={required} rows={4} />
+      <textarea id={id} lang={lang} value={value} onChange={(event) => onChange(event.target.value)} maxLength={maxLength} required={required} disabled={disabled} rows={4} />
     </label>
   );
 }
@@ -905,6 +1022,20 @@ function EventFields({
 }) {
   const eventId = `${ids}-event-${event.id}`;
   const titleId = `${eventId}-title`;
+  function updatePopupField(index: number, update: Partial<WeddingEventPopupDetail>) {
+    onChange({ popupDetails: event.popupDetails.map((detail, detailIndex) => detailIndex === index ? { ...detail, ...update } : detail) });
+  }
+  function addPopupField(label = { en: "", hi: "" }) {
+    if (event.popupDetails.length >= MAX_EVENT_POPUP_FIELDS) return;
+    onChange({ popupDetails: [...event.popupDetails, { label: { ...label }, value: { en: "", hi: "" } }] });
+  }
+  function movePopupField(index: number, offset: -1 | 1) {
+    const targetIndex = index + offset;
+    if (targetIndex < 0 || targetIndex >= event.popupDetails.length) return;
+    const popupDetails = [...event.popupDetails];
+    [popupDetails[index], popupDetails[targetIndex]] = [popupDetails[targetIndex], popupDetails[index]];
+    onChange({ popupDetails });
+  }
   return (
     <article className={styles.eventFields} aria-labelledby={titleId}>
       <div className={styles.eventFieldsHeader}>
@@ -962,6 +1093,45 @@ function EventFields({
         <div className={styles.twoColumnGrid}>
           <DateTimeField label="Starts" value={event.startAt} onChange={(value) => onChange({ startAt: value })} required />
           <DateTimeField label="Ends" value={event.endAt} onChange={(value) => onChange({ endAt: value })} required />
+        </div>
+      </fieldset>
+
+      <fieldset className={styles.compactFieldset}>
+        <legend>Event popup</legend>
+        <p className={styles.fieldsetCopy}>Guests open these details by choosing the event name in their invitation. Add an introduction and any fields this event needs. Leave both descriptions blank if you only want custom fields.</p>
+        <div className={styles.bilingualGrid}>
+          <TextAreaField label="Description" language="English" value={event.descriptionEn} onChange={(value) => onChange({ descriptionEn: value })} maxLength={2_400} />
+          <TextAreaField label="Description" language="हिन्दी" lang="hi" value={event.descriptionHi} onChange={(value) => onChange({ descriptionHi: value })} maxLength={2_400} />
+        </div>
+        <div className={styles.popupSuggestions}>
+          <span>Suggested labels</span>
+          {popupFieldSuggestions.map((label) => (
+            <button key={label.en} type="button" onClick={() => addPopupField(label)} disabled={event.popupDetails.length >= MAX_EVENT_POPUP_FIELDS}>+ {label.en}</button>
+          ))}
+        </div>
+        <div className={styles.popupFieldList}>
+          {event.popupDetails.map((detail, index) => (
+            <section key={index} className={styles.popupFieldCard} aria-label={`Custom popup field ${index + 1}`}>
+              <div className={styles.popupFieldHeader}>
+                <strong>Custom field {index + 1}</strong>
+                <div className={styles.popupFieldActions}>
+                  <button type="button" aria-label={`Move popup field ${index + 1} up`} onClick={() => movePopupField(index, -1)} disabled={index === 0}>Move up</button>
+                  <button type="button" aria-label={`Move popup field ${index + 1} down`} onClick={() => movePopupField(index, 1)} disabled={index === event.popupDetails.length - 1}>Move down</button>
+                  <button type="button" aria-label={`Remove popup field ${index + 1}`} onClick={() => onChange({ popupDetails: event.popupDetails.filter((_, detailIndex) => detailIndex !== index) })}>Remove</button>
+                </div>
+              </div>
+              <div className={styles.bilingualGrid}>
+                <InputField label="Field label" language="English" value={detail.label.en} onChange={(value) => updatePopupField(index, { label: { ...detail.label, en: value } })} maxLength={120} required />
+                <InputField label="Field label" language="हिन्दी" lang="hi" value={detail.label.hi} onChange={(value) => updatePopupField(index, { label: { ...detail.label, hi: value } })} maxLength={120} required />
+                <TextAreaField label="Field content" language="English" value={detail.value.en} onChange={(value) => updatePopupField(index, { value: { ...detail.value, en: value } })} maxLength={1_200} required />
+                <TextAreaField label="Field content" language="हिन्दी" lang="hi" value={detail.value.hi} onChange={(value) => updatePopupField(index, { value: { ...detail.value, hi: value } })} maxLength={1_200} required />
+              </div>
+            </section>
+          ))}
+        </div>
+        <div className={styles.popupFieldFooter}>
+          <button type="button" className="admin-outline-button" onClick={() => addPopupField()} disabled={event.popupDetails.length >= MAX_EVENT_POPUP_FIELDS}>Add custom field</button>
+          <span>{event.popupDetails.length} of {MAX_EVENT_POPUP_FIELDS} fields · All labels and content are editable.</span>
         </div>
       </fieldset>
 

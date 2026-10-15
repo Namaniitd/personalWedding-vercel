@@ -4,7 +4,8 @@ import type { PoolClient } from "pg";
 import { z } from "zod";
 
 import { createEntryPassPayload, entryPassTokenSchema } from "../domain/entry-pass.js";
-import type { AttendanceInput, EntryPass, RSVPStatus } from "../domain/types.js";
+import type { AttendanceInput, EntryPass, RSVPStatus, WeddingSide } from "../domain/types.js";
+import { requireWeddingSide } from "../domain/wedding-side.js";
 
 const ENTRY_PASS_KEY_CONTEXT = "shaadi-companion/database-entry-pass/v1";
 
@@ -137,9 +138,11 @@ export async function syncDatabaseEntryPassInTransaction(
   input: {
     invitationId: string;
     invitationToken: string;
+    side?: WeddingSide;
     rsvp: DatabaseRsvpForPass | null;
   }
 ): Promise<EntryPass | null> {
+  const side = requireWeddingSide(input.side ?? "groom");
   const eligible = input.rsvp
     ? hasDatabaseEntryPassEligibility(input.rsvp.status, input.rsvp.attendances)
     : false;
@@ -160,11 +163,12 @@ export async function syncDatabaseEntryPassInTransaction(
        ) as first_checked_in_at
      from wedding.entry_passes as passes
     where passes.invitation_id = $1
+      and exists (select 1 from wedding.invitations where id = passes.invitation_id and side = $2)
       and passes.status = 'active'
     order by passes.issued_at desc
     limit 1
     for update`,
-    [input.invitationId]
+    [input.invitationId, side]
   );
   const existing = existingRows[0];
 
@@ -194,7 +198,7 @@ export async function syncDatabaseEntryPassInTransaction(
     // invalidate it under the invitation lock, then issue a fresh version with
     // the currently configured key below. This fails closed rather than
     // returning a QR that cannot be looked up by the scanner.
-    await invalidateDatabaseEntryPassesInTransaction(client, input.invitationId, "entry_pass_key_changed");
+    await invalidateDatabaseEntryPassesInTransaction(client, input.invitationId, "entry_pass_key_changed", side);
   }
 
   // The version is not a secret. Its only job is to make a returned-to-
@@ -206,9 +210,10 @@ export async function syncDatabaseEntryPassInTransaction(
       const { rows } = await client.query<DatabaseEntryPassInsertRow>(
         `insert into wedding.entry_passes (
            id, invitation_id, token_hash, pass_version, status
-         ) values ($1, $2, $3, $4, 'active')
+         ) select $1, $2, $3, $4, 'active'
+           where exists (select 1 from wedding.invitations where id = $2 and side = $5)
          returning id, invitation_id, token_hash, pass_version, status, issued_at, invalidated_at`,
-        [randomUUID(), input.invitationId, databaseEntryPassTokenDigest(passToken), passVersion]
+        [randomUUID(), input.invitationId, databaseEntryPassTokenDigest(passToken), passVersion, side]
       );
       const created = rows[0];
       if (!created) throw new Error("The entry pass was not saved.");
@@ -228,15 +233,18 @@ export async function syncDatabaseEntryPassInTransaction(
 export async function invalidateDatabaseEntryPassesInTransaction(
   client: PoolClient,
   invitationId: string,
-  reason: "invitation_revoked" | "rsvp_no_longer_attending" | "rsvp_deleted" | "entry_pass_key_changed"
+  reason: "invitation_revoked" | "rsvp_no_longer_attending" | "rsvp_deleted" | "entry_pass_key_changed",
+  side: WeddingSide = "groom"
 ) {
+  requireWeddingSide(side);
   await client.query(
     `update wedding.entry_passes
         set status = 'invalidated',
             invalidated_at = coalesce(invalidated_at, now()),
             invalidation_reason = coalesce(invalidation_reason, $2)
       where invitation_id = $1
+        and exists (select 1 from wedding.invitations where id = $1 and side = $3)
         and status = 'active'`,
-    [invitationId, reason]
+    [invitationId, reason, side]
   );
 }

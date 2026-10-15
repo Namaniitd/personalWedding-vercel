@@ -1,6 +1,7 @@
 import { createWeddingContact } from "../domain/wedding-contact.js";
 import type { PoolClient } from "pg";
 import { getDatabasePool } from "./database-rsvps.js";
+import { requireWeddingSide, weddingSideSettingsId } from "../domain/wedding-side.js";
 import {
   formatLocalizedDate,
   mapWeddingEvent,
@@ -17,7 +18,8 @@ import type {
   LocalizedText,
   WeddingContact,
   WeddingDetails,
-  WeddingEvent
+  WeddingEvent,
+  WeddingSide
 } from "../domain/types.js";
 
 type DatabaseInvitationSettingsRow = DatabaseWeddingSettingsRow & {
@@ -71,14 +73,14 @@ function parseGuestLimit(value: unknown) {
   return Number.isSafeInteger(numeric) && numeric >= 0 && numeric <= 30 ? numeric : null;
 }
 
-function mapContacts(settings: DatabaseInvitationSettingsRow, rows: DatabaseWeddingContactRow[]) {
+function mapContacts(settings: DatabaseInvitationSettingsRow, rows: DatabaseWeddingContactRow[], side: WeddingSide) {
   // The primary reply-to contact lives in the singleton just like hosted
   // settings. Optional active rows can provide a different groom or bride
   // contact, but no role can ever fall back to a hard-coded person or number.
-  const primaryContact = createWeddingContact("groom", settings.coordinator_name, settings.coordinator_phone);
+  const primaryContact = createWeddingContact(side, settings.coordinator_name, settings.coordinator_phone);
   if (!primaryContact) return null;
 
-  const contacts: Partial<Record<ContactRole, WeddingContact>> = { groom: primaryContact };
+  const contacts: Partial<Record<ContactRole, WeddingContact>> = { [side]: primaryContact };
   for (const row of rows) {
     if (row.role !== "groom" && row.role !== "bride" || typeof row.is_active !== "boolean") return null;
     if (!row.is_active) continue;
@@ -120,7 +122,8 @@ function mapDatabaseEvents(rows: DatabaseInvitationEventRow[]) {
  * module deliberately has no fixture import: a missing row, invalid contact,
  * malformed event, or empty schedule leaves invitation links unavailable.
  */
-export async function loadDatabaseWeddingConfiguration(client?: PoolClient): Promise<DatabaseWeddingConfiguration> {
+export async function loadDatabaseWeddingConfiguration(client?: PoolClient, side: WeddingSide = "groom"): Promise<DatabaseWeddingConfiguration> {
+  requireWeddingSide(side);
   const pool = client ?? getDatabasePool();
   const [settingsResult, eventsResult, contactsResult] = await Promise.all([
     pool.query<DatabaseInvitationSettingsRow>(
@@ -135,8 +138,9 @@ export async function loadDatabaseWeddingConfiguration(client?: PoolClient): Pro
          announcement_starts_at, announcement_ends_at,
          guest_content
        from wedding.settings
-      where id = 1
-      limit 1`
+      where id = $1 and side = $2
+      limit 1`,
+      [weddingSideSettingsId(side), side]
     ),
     pool.query<DatabaseInvitationEventRow>(
       `select
@@ -149,16 +153,20 @@ export async function loadDatabaseWeddingConfiguration(client?: PoolClient): Pro
          entry_note_en, entry_note_hi,
          dress_code_en, dress_code_hi,
          practical_note_en, practical_note_hi,
+         description_en, description_hi, popup_details,
          category, published, display_order,
          default_selected, default_adult_limit, default_child_limit
        from wedding.events
-      where published = true
-      order by display_order asc, start_at asc, id asc`
+      where published = true and side = $1
+      order by display_order asc, start_at asc, id asc`,
+      [side]
     ),
     pool.query<DatabaseWeddingContactRow>(
       `select role, name, phone, is_active
          from wedding.contacts
-        order by role asc`
+        where side = $1
+        order by role asc`,
+      [side]
     )
   ]);
 
@@ -171,7 +179,7 @@ export async function loadDatabaseWeddingConfiguration(client?: PoolClient): Pro
   const rsvpDeadline = formatLocalizedDate(settings.can_edit_until);
   const rsvpDeadlineIso = normalizeDatabaseTimestamp(settings.can_edit_until);
   const deadlineIso = normalizeDatabaseTimestamp(settings.rsvp_deadline);
-  const contacts = mapContacts(settings, contactsResult.rows);
+  const contacts = mapContacts(settings, contactsResult.rows, side);
   const events = mapDatabaseEvents(eventsResult.rows);
 
   if (!wedding || !rsvpDeadline || !rsvpDeadlineIso || !deadlineIso || rsvpDeadlineIso > deadlineIso || !contacts || !events || events.length === 0) {
@@ -186,27 +194,30 @@ export function databaseWeddingContact(configuration: DatabaseWeddingConfigurati
 }
 
 /** Safe DTO for the coordinator form; it contains no database metadata. */
-export async function getDatabaseWeddingIssuerOptions(): Promise<DatabaseInvitationIssuerOptions> {
+export async function getDatabaseWeddingIssuerOptions(side: WeddingSide = "groom"): Promise<DatabaseInvitationIssuerOptions> {
+  requireWeddingSide(side);
   let configuration: DatabaseWeddingConfiguration;
   try {
-    configuration = await loadDatabaseWeddingConfiguration();
+    configuration = await loadDatabaseWeddingConfiguration(undefined, side);
   } catch (error) {
     // An unconfigured wedding still needs a coordinator workspace so its
     // Content editor can complete setup. Guest links remain strict, and query
     // failures or invalid saved configuration must still report unavailable.
     if (!(error instanceof WeddingSettingsNotConfiguredError)) throw error;
     return {
+      side,
       events: [],
       defaultEventLimits: [],
       contactOptions: [],
-      defaultContactRole: "groom"
+      defaultContactRole: side
     };
   }
-  const groom = databaseWeddingContact(configuration, "groom");
-  if (!groom) throw new Error("The primary reply-to contact is invalid.");
-  const bride = databaseWeddingContact(configuration, "bride");
+  const primary = databaseWeddingContact(configuration, side);
+  if (!primary) throw new Error("The primary reply-to contact is invalid.");
+  const other = databaseWeddingContact(configuration, side === "groom" ? "bride" : "groom");
 
   return {
+    side,
     events: configuration.events.map(({ event }) => ({ id: event.id, title: event.title })),
     defaultEventLimits: configuration.events
       .filter((event) => event.defaultSelected)
@@ -215,11 +226,11 @@ export async function getDatabaseWeddingIssuerOptions(): Promise<DatabaseInvitat
         adults: event.defaultAdults,
         children: event.defaultChildren
       })),
-    contactOptions: [groom, ...(bride ? [bride] : [])].map((contact) => ({
+    contactOptions: [primary, ...(other ? [other] : [])].map((contact) => ({
       role: contact.role,
       name: contact.name,
       phoneDisplay: contact.phoneDisplay
     })),
-    defaultContactRole: groom.role
+    defaultContactRole: primary.role
   };
 }

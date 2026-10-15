@@ -242,6 +242,36 @@ describe("request security helpers", () => {
     expect(isCoordinatorAuthConfigured()).toBe(true);
   });
 
+  it("binds sessions to their own side and invalidates only the rotated password", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("COORDINATOR_PASSWORD", "groom-independent-password-123456");
+    vi.stubEnv("COORDINATOR_BRIDE_PASSWORD", "bride-independent-password-123456");
+    vi.stubEnv("COORDINATOR_SESSION_SECRET", "test-session-secret-abcdefghijklmnopqrstuvwxyz");
+    const groom = createCoordinatorSession(Date.now(), "groom");
+    const bride = createCoordinatorSession(Date.now(), "bride");
+    expect(await isAuthorizedCoordinatorSession(groom, Date.now(), "groom")).toBe(true);
+    expect(await isAuthorizedCoordinatorSession(bride, Date.now(), "bride")).toBe(true);
+    expect(await isAuthorizedCoordinatorSession(groom, Date.now(), "bride")).toBe(false);
+    expect(await isAuthorizedCoordinatorSession(bride, Date.now(), "groom")).toBe(false);
+    expect(await isAuthorizedCoordinatorSession(groom?.replace(".groom.", ".bride."))).toBe(false);
+    expect(isAuthorizedCoordinatorPassword("groom-independent-password-123456", "bride")).toBe(false);
+    vi.stubEnv("COORDINATOR_BRIDE_PASSWORD", "rotated-bride-password-123456789");
+    expect(await isAuthorizedCoordinatorSession(bride)).toBe(false);
+    expect(await isAuthorizedCoordinatorSession(groom)).toBe(true);
+  });
+
+  it("requires a separate bride password and ignores browser side headers", async () => {
+    vi.stubEnv("COORDINATOR_PASSWORD", "shared-coordinator-password-123456");
+    vi.stubEnv("COORDINATOR_BRIDE_PASSWORD", "shared-coordinator-password-123456");
+    vi.stubEnv("COORDINATOR_SESSION_SECRET", "test-session-secret-abcdefghijklmnopqrstuvwxyz");
+    expect(isCoordinatorAuthConfigured("bride")).toBe(false);
+    expect(createCoordinatorSession(Date.now(), "bride")).toBeNull();
+    const groom = createCoordinatorSession();
+    expect(await isAuthorizedCoordinatorRequest(new NextRequest("http://localhost/api/coordinator/b/content", {
+      headers: { Cookie: `${COORDINATOR_SESSION_COOKIE}=${groom}`, "X-Wedding-Side": "groom" }
+    }))).toBe(false);
+  });
+
   it("never enables HTTP origins on Vercel through a local-stack setting", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("VERCEL", "1");

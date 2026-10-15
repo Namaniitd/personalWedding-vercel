@@ -2,6 +2,8 @@
 
 import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { WeddingSide } from "@/lib/types";
+import { coordinatorApiPath, coordinatorPath } from "@/lib/wedding-side";
 
 function errorMessage(value: unknown) {
   if (
@@ -13,12 +15,13 @@ function errorMessage(value: unknown) {
   return "Coordinator sign-in could not be completed.";
 }
 
-export function CoordinatorLogin({ configured, databaseConfigured: coordinatorAvailable, requiresCode = false }: { configured: boolean; databaseConfigured: boolean; requiresCode?: boolean }) {
+export function CoordinatorLogin({ configured, databaseConfigured: coordinatorAvailable, requiresCode = false, side = "groom" }: { side?: WeddingSide; configured: boolean; databaseConfigured: boolean; requiresCode?: boolean }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const team = side === "bride" ? "bride’s" : "groom’s";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,14 +30,14 @@ export function CoordinatorLogin({ configured, databaseConfigured: coordinatorAv
     setMessage("");
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/coordinator/login", {
+      const response = await fetch(coordinatorApiPath("login", side), {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password, ...(requiresCode ? { code } : {}) })
       });
       if (response.ok) {
-        router.replace("/coordinator");
+        router.replace(coordinatorPath(side));
         return;
       }
       setMessage(errorMessage(await response.json().catch(() => null)));
@@ -49,12 +52,16 @@ export function CoordinatorLogin({ configured, databaseConfigured: coordinatorAv
     <main className="coordinator-login-page">
       <section className="coordinator-login-card" aria-labelledby="coordinator-login-title">
         <div className="coordinator-login-mark" aria-hidden="true">W<span>&amp;</span>W</div>
-        <p className="coordinator-login-kicker">Coordinator access</p>
+        <p className="coordinator-login-kicker">{side === "bride" ? "Bride’s coordinator" : "Groom’s coordinator"}</p>
+        <nav className="coordinator-side-choice" aria-label="Choose your coordinator workspace">
+          <a href={coordinatorPath("groom", "login")} aria-current={side === "groom" ? "page" : undefined}>Groom’s side</a>
+          <a href={coordinatorPath("bride", "login")} aria-current={side === "bride" ? "page" : undefined}>Bride’s side</a>
+        </nav>
         <h1 id="coordinator-login-title">Welcome back.</h1>
         <p className="coordinator-login-copy">
           {requiresCode
-            ? "Sign in with your coordinator password and the code from your authenticator app."
-            : "Sign in with the coordinator password provided by the wedding administrator."}
+            ? `Sign in with the ${team} coordinator password and the code from that team’s authenticator app.`
+            : `Sign in with the ${team} coordinator password provided by the wedding administrator.`}
         </p>
 
         {configured ? (
@@ -101,10 +108,10 @@ export function CoordinatorLogin({ configured, databaseConfigured: coordinatorAv
           </form>
         ) : (
           <div className="coordinator-login-setup" role="status">
-            <p>{coordinatorAvailable ? "Coordinator sign-in is not available yet." : "The invitation service is currently unavailable for coordinators."}</p>
+            <p>{coordinatorAvailable ? `The ${team} coordinator sign-in is not available yet.` : "The invitation service is currently unavailable for coordinators."}</p>
             <p className="coordinator-login-setup-hint">
               {coordinatorAvailable
-                ? "Ask the site administrator to complete the web service sign-in setup."
+                ? `Ask the site administrator to complete sign-in setup for the ${team} workspace.`
                 : "Ask the site administrator to check the invitation API service, then try again."}
             </p>
           </div>

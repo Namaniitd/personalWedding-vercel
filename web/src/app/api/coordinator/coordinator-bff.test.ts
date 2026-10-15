@@ -92,13 +92,13 @@ describe("coordinator browser API boundary", () => {
       ok: true,
       invitationId: issued.id,
       createdAt: issued.createdAt,
-      invitationUrl: `http://localhost/i/${issuedToken}`,
+      invitationUrl: `http://localhost/i/g/${issuedToken}`,
       householdName: issued.householdName,
       eventCount: 1,
       contactRole: "groom"
     });
     expect(payload.token).toBeUndefined();
-    expect(backend.requestBackend).toHaveBeenCalledWith("/v1/coordinator/invitations", { method: "POST", body: input });
+    expect(backend.requestBackend).toHaveBeenCalledWith("/v1/coordinator/invitations", { method: "POST", body: input, side: "groom" });
   });
 
   it("requires a signed same-origin browser request before forwarding a coordinator mutation", async () => {
@@ -107,6 +107,20 @@ describe("coordinator browser API boundary", () => {
     expect((await revokeInvitation(mutation("/api/coordinator/invitations/revoke", input, { Cookie: "" }))).status).toBe(403);
     expect((await revokeInvitation(mutation("/api/coordinator/invitations/revoke", input, { "Content-Type": "text/plain" }))).status).toBe(415);
     expect(backend.requestBackend).not.toHaveBeenCalled();
+  });
+
+  it("binds bride requests to the URL and issues a bride link only for a matching backend owner", async () => {
+    vi.stubEnv("COORDINATOR_BRIDE_PASSWORD", "independent-bride-password-123456789");
+    const session = createCoordinatorSession(Date.now(), "bride");
+    const headers = { Cookie: `${COORDINATOR_SESSION_COOKIE}=${session}`, "X-Wedding-Side": "groom" };
+    backend.requestBackend.mockResolvedValueOnce(Response.json({ ok: true, issued: { ...issued, side: "bride", contactRole: "bride" } }));
+    const response = await issueInvitation(mutation("/api/coordinator/b/invitations", {}, headers));
+    expect(response.status).toBe(200);
+    expect((await response.json()).invitationUrl).toBe(`http://localhost/i/b/${issuedToken}`);
+    expect(backend.requestBackend).toHaveBeenLastCalledWith("/v1/coordinator/invitations", { side: "bride", method: "POST", body: {} });
+    backend.requestBackend.mockResolvedValueOnce(Response.json({ ok: true, issued }));
+    expect((await issueInvitation(mutation("/api/coordinator/b/invitations", {}, headers))).status).toBe(503);
+    expect((await issueInvitation(mutation("/api/coordinator/g/invitations", {}, headers))).status).toBe(403);
   });
 
   it("preserves revoke, RSVP deletion, and content conflict results", async () => {
@@ -121,7 +135,7 @@ describe("coordinator browser API boundary", () => {
     const content = await putContent(mutation("/api/coordinator/content", { revision: "old" }));
     expect(content.status).toBe(409);
     expect(backend.requestBackend).toHaveBeenLastCalledWith("/v1/coordinator/content", {
-      method: "PUT", body: { revision: "old" }
+      method: "PUT", body: { revision: "old" }, side: "groom"
     });
   });
 
@@ -131,7 +145,7 @@ describe("coordinator browser API boundary", () => {
       headers: { Cookie: sessionCookie() }
     }));
     expect(content.status).toBe(200);
-    expect(backend.requestBackend).toHaveBeenCalledWith("/v1/coordinator/content");
+    expect(backend.requestBackend).toHaveBeenCalledWith("/v1/coordinator/content", { side: "groom" });
 
     const passToken = "B".repeat(43);
     backend.requestBackend.mockResolvedValueOnce(Response.json({ ok: true, outcome: "checked_in", householdName: "Test household" }));
@@ -139,7 +153,7 @@ describe("coordinator browser API boundary", () => {
     expect(scanned.status).toBe(200);
     expect(JSON.stringify(await scanned.json())).not.toContain(passToken);
     expect(backend.requestBackend).toHaveBeenLastCalledWith("/v1/coordinator/check-in", {
-      method: "POST", body: { passToken, eventId: "event-one" }
+      method: "POST", body: { passToken, eventId: "event-one" }, side: "groom"
     });
   });
 
@@ -186,7 +200,7 @@ describe("coordinator browser API boundary", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ ok: true, updatedAt: issued.createdAt });
     expect(response.headers.get("cache-control")).toContain("no-store");
-    expect(backend.requestBackend).toHaveBeenLastCalledWith("/v1/coordinator/rsvp", { method: "POST", body: manualReply });
+    expect(backend.requestBackend).toHaveBeenLastCalledWith("/v1/coordinator/rsvp", { method: "POST", body: manualReply, side: "groom" });
     backend.requestBackend.mockResolvedValueOnce(Response.json({ ok: true, updatedAt: issued.createdAt, token: issuedToken }));
     expect((await recordRsvp(mutation("/api/coordinator/rsvp", manualReply))).status).toBe(503);
   });

@@ -142,4 +142,25 @@ describe("frontend private API client", () => {
 
     await expect(getBackendCoordinatorWorkspace()).rejects.toBeInstanceOf(BackendUnavailableError);
   });
+
+  it("fails closed for bride requests on an older API and supplies trusted scope on an upgraded API", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ mode: "database", coordinatorAvailable: true }));
+    await expect(requestBackend("/v1/coordinator/content", { side: "bride" })).rejects.toBeInstanceOf(BackendUnavailableError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fetchMock.mockResolvedValueOnce(Response.json({ mode: "database", coordinatorAvailable: true, sideIsolation: true }));
+    fetchMock.mockResolvedValueOnce(Response.json({ ok: true }));
+    await requestBackend("/v1/coordinator/content", { side: "bride" });
+    const [, init] = fetchMock.mock.calls[2] as [URL, RequestInit];
+    expect(new Headers(init.headers).get("x-wedding-side")).toBe("bride");
+  });
+
+  it("checks the invitation owner even when an old backend ignores the expected side", async () => {
+    const invitationToken = "invitation-token-abcdefghijklmnopqrstuvwxyz";
+    fetchMock.mockResolvedValueOnce(Response.json({
+      ok: true, resolved: { invitation: { token: invitationToken }, events: [], wedding: {} }
+    }));
+    await expect(resolveBackendInvitation(invitationToken, "bride")).resolves.toBeNull();
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ token: invitationToken, side: "bride" });
+  });
 });

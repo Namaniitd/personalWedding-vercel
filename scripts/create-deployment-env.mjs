@@ -26,7 +26,21 @@ function base32(bytes) {
 
 const randomSecret = () => randomBytes(32).toString("hex");
 const serviceToken = randomSecret();
-const totpSecret = base32(randomBytes(32));
+const groomTotpSecret = base32(randomBytes(32));
+const brideTotpSecret = base32(randomBytes(32));
+
+function authenticatorInstructions(side, secret) {
+  const account = `${side} Coordinator`;
+  return [
+    "Add a new account in Google Authenticator, 1Password, Authy, or another TOTP app.",
+    `Account name: Shaadi Companion ${account}`,
+    `Setup key: ${secret}`,
+    "Type: Time based; SHA1; 6 digits; period 30 seconds.",
+    "Keep this file private. It can be used to enroll or restore this team's authenticator.",
+    "",
+    `otpauth://totp/Shaadi%20Companion:${encodeURIComponent(account)}?secret=${secret}&issuer=Shaadi%20Companion&algorithm=SHA1&digits=6&period=30`
+  ];
+}
 const credentials = {
   "api.env": [
     "# API project only. Replace the two blank values before deploying.",
@@ -41,9 +55,11 @@ const credentials = {
     "PUBLIC_APP_ORIGIN=",
     "BACKEND_URL=",
     `BACKEND_SERVICE_TOKEN=${serviceToken}`,
-    `COORDINATOR_PASSWORD=${randomSecret()}`,
+    `COORDINATOR_GROOM_PASSWORD=${randomSecret()}`,
+    `COORDINATOR_BRIDE_PASSWORD=${randomSecret()}`,
     `COORDINATOR_SESSION_SECRET=${randomSecret()}`,
-    `COORDINATOR_TOTP_SECRET=${totpSecret}`
+    `COORDINATOR_GROOM_TOTP_SECRET=${groomTotpSecret}`,
+    `COORDINATOR_BRIDE_TOTP_SECRET=${brideTotpSecret}`
   ],
   "neon-setup.env": [
     "# Operator-only. Paste Neon's DIRECT owner URL with sslmode=verify-full.",
@@ -54,15 +70,8 @@ const credentials = {
     "DATABASE_RUNTIME_ROLE=shaadi_app",
     `DATABASE_RUNTIME_PASSWORD=${randomSecret()}`
   ],
-  "authenticator.txt": [
-    "Add a new account in Google Authenticator, 1Password, Authy, or another TOTP app.",
-    "Account name: Shaadi Companion Coordinator",
-    `Setup key: ${totpSecret}`,
-    "Type: Time based; SHA1; 6 digits; period 30 seconds.",
-    "Keep this file private. It can be used to enroll or restore an authenticator.",
-    "",
-    `otpauth://totp/Shaadi%20Companion:Coordinator?secret=${totpSecret}&issuer=Shaadi%20Companion&algorithm=SHA1&digits=6&period=30`
-  ]
+  "authenticator-groom.txt": authenticatorInstructions("Groom", groomTotpSecret),
+  "authenticator-bride.txt": authenticatorInstructions("Bride", brideTotpSecret)
 };
 
 for (const [name, lines] of Object.entries(credentials)) {

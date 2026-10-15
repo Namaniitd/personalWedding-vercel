@@ -4,8 +4,12 @@
 
 import { useEffect, useState } from "react";
 
+import { EventDetailsDialog } from "@/components/event-details-dialog";
+import { InvitationPhotoCarousel } from "@/components/invitation-photo-carousel";
+import { InvitationTeaser } from "@/components/invitation-teaser";
 import { RSVPForm } from "@/components/rsvp-form";
 import { WeddingCountdown } from "@/components/wedding-countdown";
+import { DEFAULT_INVITATION_LEAD } from "@/lib/invitation-introduction";
 import { invitationMediaUrl } from "@/lib/invitation-media";
 import type { Locale, ResolvedInvitation, WeddingArtworkKey, WeddingEvent, WeddingGuestContent } from "@/lib/types";
 
@@ -75,7 +79,7 @@ const copy: Record<Locale, InviteCopy> = {
     rsvp: "RSVP",
     help: "Contact",
     switchLanguage: "View in Hindi",
-    invitationLead: "Together with our families, we invite you to celebrate the wedding of",
+    invitationLead: DEFAULT_INVITATION_LEAD.en,
     blessing: "With love and blessings",
     date: "Wedding date",
     place: "Location",
@@ -127,7 +131,7 @@ const copy: Record<Locale, InviteCopy> = {
     rsvp: "RSVP",
     help: "संपर्क",
     switchLanguage: "View in English",
-    invitationLead: "परिवारों के साथ, हम आपको इनके विवाह में सादर आमंत्रित करते हैं",
+    invitationLead: DEFAULT_INVITATION_LEAD.hi,
     blessing: "स्नेह और आशीर्वाद के साथ",
     date: "विवाह की तिथि",
     place: "स्थान",
@@ -253,7 +257,7 @@ function EventCard({ event, index, locale, token, labels }: { event: WeddingEven
         <span>{event.startTime[locale]}</span>
       </div>
       <div className={styles.eventBody}>
-        <h3>{event.title[locale]}</h3>
+        <EventDetailsDialog event={event} locale={locale} />
         <div className={styles.eventFacts}>
           <div><Icon name="clock" size={18} /><span><small>{labels.arrival}</small><strong>{event.arrivalWindow[locale]}</strong></span></div>
           <div><Icon name="pin" size={18} /><span><small>{labels.venue}</small><strong>{event.venue[locale]}</strong></span></div>
@@ -307,6 +311,7 @@ function Blessings({ blessings, locale, labels, token }: { blessings: WeddingGue
 export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
   const { invitation, events, rsvp, entryPass, wedding } = resolved;
   const [locale, setLocale] = useState<Locale>(invitation.preferredLocale);
+  const [teaserPlaying, setTeaserPlaying] = useState(false);
   const labels = copy[locale];
   const travel = wedding.guestContent?.travel;
   const hero = wedding.guestContent?.hero;
@@ -345,7 +350,7 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
             <div className={styles.heroIntro}>
               <p className={styles.invocation} lang="sa">{hero?.invocation ?? "॥ श्री गणेशाय नमः ॥"}</p>
               <p className={styles.eyebrow}>{labels.privateInvitation}</p>
-              <p className={styles.heroLead}>{labels.invitationLead}</p>
+              <p className={styles.heroLead}>{hero?.invitationLead?.[locale] ?? labels.invitationLead}</p>
               <h1 id="invitation-title" aria-label={wedding.couple[locale]}><CoupleNames names={wedding.couple[locale]} locale={locale} /></h1>
               <p className={styles.heroBlessing}>{labels.blessing}</p>
               {hero?.region && <p className={styles.heroRegion}>{hero.region[locale]}</p>}
@@ -368,10 +373,7 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
             </div>
           </div>
           <div className={styles.heroPhoto}>
-            <picture>
-              <source type="image/webp" srcSet={`${invitationMediaUrl(invitation.token, "engagement-couple-640.webp")} 640w, ${invitationMediaUrl(invitation.token, "engagement-couple-1067.webp")} 1067w`} sizes="(max-width: 760px) min(320px, calc(100vw - 38px)), (max-width: 1340px) 43vw, 520px" />
-              <img src={invitationMediaUrl(invitation.token, "engagementCouplePic.jpg")} alt={labels.heroPhotoAlt} width={1067} height={1601} fetchPriority="high" decoding="async" />
-            </picture>
+            <InvitationPhotoCarousel token={invitation.token} locale={locale} alt={labels.heroPhotoAlt} paused={teaserPlaying} />
           </div>
         </div>
       </section>
@@ -390,6 +392,8 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
           </div>
         </div>
       </aside>
+
+      <InvitationTeaser token={invitation.token} locale={locale} onPlayingChange={setTeaserPlaying} />
 
       {wedding.guestContent?.update && <section className={styles.update} aria-labelledby="update-title"><span className={styles.updateMark} aria-hidden="true">!</span><div><p className={styles.eyebrow}>{labels.update}</p><h2 id="update-title">{wedding.guestContent.update.title[locale]}</h2><p>{wedding.guestContent.update.body[locale]}</p></div></section>}
 

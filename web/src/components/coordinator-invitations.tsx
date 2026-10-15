@@ -7,13 +7,16 @@ import { CoordinatorContentSetup } from "@/components/coordinator-content-setup"
 import { DatabaseInvitationIssuer as InvitationIssuer } from "@/components/database-invitation-issuer";
 import type {
   DatabaseCoordinatorInvitation as CoordinatorInvitation,
-  DatabaseInvitationIssuerOptions as InvitationIssuerOptions
+  DatabaseInvitationIssuerOptions as InvitationIssuerOptions,
+  WeddingSide
 } from "@/lib/types";
 
 export function CoordinatorInvitations({
+  side,
   issuerOptions,
   invitations
 }: {
+  side: WeddingSide;
   issuerOptions: InvitationIssuerOptions;
   invitations: CoordinatorInvitation[];
 }) {
@@ -31,7 +34,7 @@ export function CoordinatorInvitations({
     router.refresh();
   }
 
-  if (issuerOptions.events.length === 0) return <CoordinatorContentSetup />;
+  if (issuerOptions.events.length === 0) return <CoordinatorContentSetup side={side} />;
 
   return (
     <>

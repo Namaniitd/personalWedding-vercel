@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { coordinatorPath } from "@/lib/wedding-side";
 import { CoordinatorContentEditor } from "@/components/coordinator-content-editor";
 import { CoordinatorShell } from "@/components/coordinator-shell";
 import { activeInvitationRows, summariseRows } from "@/lib/coordinator-rows";
@@ -17,19 +18,19 @@ export const dynamic = "force-dynamic";
  * a partially configured one.
  */
 export default async function CoordinatorContentPage() {
-  await requireCoordinatorAccess();
+  const side = await requireCoordinatorAccess();
 
   const [content, invitations] = await Promise.all([
-    getBackendCoordinatorContent().catch(() => null),
+    getBackendCoordinatorContent(side).catch(() => null),
     // A damaged historic invitation row should not lock a coordinator out of
     // the tool used to repair their actual wedding configuration.
-    listBackendCoordinatorInvitations().catch(() => [])
+    listBackendCoordinatorInvitations(side).catch(() => [])
   ]);
-  if (!content) redirect("/coordinator/unavailable");
+  if (!content) redirect(coordinatorPath(side, "unavailable"));
 
   const totals = summariseRows(activeInvitationRows(invitations));
   return (
-    <CoordinatorShell replied={totals.replied} followUps={totals.followUps}>
+    <CoordinatorShell side={side} replied={totals.replied} followUps={totals.followUps}>
       <CoordinatorContentEditor initialContent={content} />
     </CoordinatorShell>
   );

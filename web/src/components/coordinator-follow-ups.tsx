@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import { activeInvitationRows, downloadCsv } from "@/lib/coordinator-rows";
-import type { DatabaseCoordinatorInvitation as CoordinatorInvitation, DatabaseInvitationIssuerOptions } from "@/lib/types";
+import type { DatabaseCoordinatorInvitation as CoordinatorInvitation, DatabaseInvitationIssuerOptions, WeddingSide } from "@/lib/types";
+import { coordinatorPath } from "@/lib/wedding-side";
 
-export function CoordinatorFollowUps({ invitations, issuerOptions }: { invitations: CoordinatorInvitation[]; issuerOptions: DatabaseInvitationIssuerOptions }) {
+export function CoordinatorFollowUps({ side, invitations, issuerOptions }: { side: WeddingSide; invitations: CoordinatorInvitation[]; issuerOptions: DatabaseInvitationIssuerOptions }) {
+  const responsesPath = coordinatorPath(side, "responses");
   const rows = useMemo(() => activeInvitationRows(invitations), [invitations]);
   const pendingRows = useMemo(() => rows.filter((row) => row.state === "Pending"), [rows]);
   const confirmingRows = useMemo(() => rows.filter((row) => row.state === "Confirming"), [rows]);
@@ -25,7 +27,7 @@ export function CoordinatorFollowUps({ invitations, issuerOptions }: { invitatio
           <span>{followUpRows.length} household{followUpRows.length === 1 ? "" : "s"} need a reply or final confirmation.</span>
         </div>
         <div className="admin-workspace-heading-actions">
-          <Link href="/coordinator/responses?filter=Needs%20follow-up" className="admin-outline-button">View all follow-ups <span aria-hidden="true">→</span></Link>
+          <Link href={`${responsesPath}?filter=Needs%20follow-up`} prefetch={false} className="admin-outline-button">View all follow-ups <span aria-hidden="true">→</span></Link>
         </div>
       </section>
 
@@ -37,7 +39,7 @@ export function CoordinatorFollowUps({ invitations, issuerOptions }: { invitatio
             <p>{nextIsConfirming
               ? "They replied that they will confirm soon. Send a personal WhatsApp reminder for their final attendance plan, then refresh this workspace to review the saved outcome."
               : "Still awaiting a reply. Send a personal WhatsApp reminder, then refresh this coordinator workspace to review the saved outcome."}</p>
-            <Link href={`/coordinator/responses?search=${encodeURIComponent(nextFollowUp.household)}`}>View household <span aria-hidden="true">→</span></Link>
+            <Link href={`${responsesPath}?search=${encodeURIComponent(nextFollowUp.household)}`} prefetch={false}>View household <span aria-hidden="true">→</span></Link>
           </> : <>
             <h2>All caught up</h2>
             <p>No active household currently needs a reply or final confirmation. Export a fresh list before your final vendor check-in.</p>
@@ -70,7 +72,7 @@ export function CoordinatorFollowUps({ invitations, issuerOptions }: { invitatio
                   <td data-label="Invitation group">{row.group}</td>
                   <td data-label="Follow-up"><strong>{row.state === "Confirming" ? "Confirm attendance" : "Request RSVP"}</strong></td>
                   <td data-label="Last update">{row.updated}</td>
-                  <td data-label="Open"><Link href={`/coordinator/responses?search=${encodeURIComponent(row.household)}`}>View <span aria-hidden="true">→</span></Link></td>
+                  <td data-label="Open"><Link href={`${responsesPath}?search=${encodeURIComponent(row.household)}`} prefetch={false}>View <span aria-hidden="true">→</span></Link></td>
                 </tr>)}
               </tbody>
             </table>

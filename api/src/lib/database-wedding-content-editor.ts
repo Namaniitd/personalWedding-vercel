@@ -6,10 +6,13 @@ import { z } from "zod";
 import { createWeddingContact } from "../domain/wedding-contact.js";
 import { lockDatabaseContentAndInvitationIssue } from "./database-content-lock.js";
 import { getDatabasePool } from "./database-rsvps.js";
+import { requireWeddingSide, weddingSideSettingsId } from "../domain/wedding-side.js";
 import {
   mapWeddingEvent,
   normalizeDatabaseTimestamp,
-  parseWeddingGuestContent
+  parseWeddingGuestContent,
+  parseWeddingEventPopupDetails,
+  weddingEventPopupDetailsSchema
 } from "../domain/wedding-content.js";
 import type {
   ContactRole,
@@ -17,7 +20,8 @@ import type {
   DatabaseWeddingContentEvent,
   DatabaseWeddingContentSettings,
   DatabaseWeddingContentSnapshot,
-  WeddingGuestContent
+  WeddingGuestContent,
+  WeddingSide
 } from "../domain/types.js";
 
 type DatabaseEditorSettingsRow = {
@@ -63,6 +67,9 @@ type DatabaseEditorEventRow = {
   dress_code_hi: string;
   practical_note_en: string;
   practical_note_hi: string;
+  description_en: string;
+  description_hi: string;
+  popup_details: unknown;
   category: "celebration" | "ceremony" | "reception";
   published: boolean;
   display_order: number | string;
@@ -149,6 +156,9 @@ const eventInputSchema = z.object({
   dressCodeHi: requiredText(300),
   practicalNoteEn: requiredText(600),
   practicalNoteHi: requiredText(600),
+  descriptionEn: optionalText(2_400).default(""),
+  descriptionHi: optionalText(2_400).default(""),
+  popupDetails: weddingEventPopupDetailsSchema.default([]),
   category: z.enum(["celebration", "ceremony", "reception"]),
   published: z.boolean(),
   displayOrder: z.number().int().min(-32_768).max(32_767),
@@ -189,6 +199,9 @@ function toDatabaseEvent(event: DatabaseWeddingContentEvent) {
     dress_code_hi: event.dressCodeHi,
     practical_note_en: event.practicalNoteEn,
     practical_note_hi: event.practicalNoteHi,
+    description_en: event.descriptionEn,
+    description_hi: event.descriptionHi,
+    popup_details: event.popupDetails,
     category: event.category,
     published: event.published,
     display_order: event.displayOrder
@@ -231,6 +244,14 @@ export const databaseWeddingContentEditorSchema = z.object({
     }
     eventIds.add(event.id);
     eventSlugs.add(event.slug);
+
+    if (Boolean(event.descriptionEn) !== Boolean(event.descriptionHi)) {
+      context.addIssue({
+        code: "custom",
+        path: ["events", index, "descriptionHi"],
+        message: "Add the event description in both languages, or leave both blank."
+      });
+    }
 
     if (!eventIsSafe(event)) {
       context.addIssue({ code: "custom", path: ["events", index], message: "Review this event's map link and times." });
@@ -317,6 +338,7 @@ export type DatabaseWeddingContentEditorInput = z.infer<typeof databaseWeddingCo
 export type DatabaseWeddingContentSaveResult =
   | { kind: "saved"; snapshot: DatabaseWeddingContentSnapshot }
   | { kind: "stale"; snapshot: DatabaseWeddingContentSnapshot }
+  | { kind: "event_side_conflict" }
   | { kind: "events_missing" }
   | { kind: "contacts_missing" }
   | { kind: "active_event_reference" }
@@ -405,6 +427,9 @@ function eventFromRow(row: DatabaseEditorEventRow): DatabaseWeddingContentEvent 
     dressCodeHi: row.dress_code_hi,
     practicalNoteEn: row.practical_note_en,
     practicalNoteHi: row.practical_note_hi,
+    descriptionEn: row.description_en ?? "",
+    descriptionHi: row.description_hi ?? "",
+    popupDetails: parseWeddingEventPopupDetails(row.popup_details) ?? [],
     category: row.category,
     published: row.published,
     displayOrder: numberValue(row.display_order, `${row.id} display order`),
@@ -429,7 +454,7 @@ function revisionFor(snapshot: Omit<DatabaseWeddingContentSnapshot, "revision">)
     .digest("hex");
 }
 
-async function loadEditorSnapshotWith(client: DatabaseQueryable): Promise<DatabaseWeddingContentSnapshot> {
+async function loadEditorSnapshotWith(client: DatabaseQueryable, side: WeddingSide): Promise<DatabaseWeddingContentSnapshot> {
   const [settingsResult, eventsResult, contactsResult] = await Promise.all([
     client.query<DatabaseEditorSettingsRow>(
       `select
@@ -442,8 +467,9 @@ async function loadEditorSnapshotWith(client: DatabaseQueryable): Promise<Databa
          announcement_starts_at, announcement_ends_at,
          guest_content
        from wedding.settings
-      where id = 1
-      limit 1`
+      where id = $1 and side = $2
+      limit 1`,
+      [weddingSideSettingsId(side), side]
     ),
     client.query<DatabaseEditorEventRow>(
       `select
@@ -456,15 +482,20 @@ async function loadEditorSnapshotWith(client: DatabaseQueryable): Promise<Databa
          entry_note_en, entry_note_hi,
          dress_code_en, dress_code_hi,
          practical_note_en, practical_note_hi,
+         description_en, description_hi, popup_details,
          category, published, display_order,
          default_selected, default_adult_limit, default_child_limit
        from wedding.events
-      order by display_order asc, start_at asc, id asc`
+      where side = $1
+      order by display_order asc, start_at asc, id asc`,
+      [side]
     ),
     client.query<DatabaseEditorContactRow>(
       `select role, name, phone, is_active
          from wedding.contacts
-        order by role asc`
+        where side = $1
+        order by role asc`,
+      [side]
     )
   ]);
 
@@ -474,15 +505,16 @@ async function loadEditorSnapshotWith(client: DatabaseQueryable): Promise<Databa
   if (!settingsRow) {
     // A fresh durable database is deliberately empty. Let a signed
     // coordinator bootstrap it in the editor instead of forcing SQL access.
-    return { revision: null, settings: { ...EMPTY_SETTINGS }, events, contacts };
+    return { side, revision: null, settings: { ...EMPTY_SETTINGS }, events, contacts };
   }
 
-  const withoutRevision = { settings: settingsFromRow(settingsRow), events, contacts };
+  const withoutRevision = { side, settings: settingsFromRow(settingsRow), events, contacts };
   return { ...withoutRevision, revision: revisionFor(withoutRevision) };
 }
 
 /** Load only explicitly selected, coordinator-safe configuration fields. */
-export async function loadDatabaseWeddingContentEditor() {
+export async function loadDatabaseWeddingContentEditor(side: WeddingSide = "groom") {
+  requireWeddingSide(side);
   const client = await getDatabasePool().connect();
   let transactionOpen = false;
   try {
@@ -491,7 +523,7 @@ export async function loadDatabaseWeddingContentEditor() {
     // events from the next one if a save commits mid-read.
     await client.query("begin transaction isolation level repeatable read read only");
     transactionOpen = true;
-    const snapshot = await loadEditorSnapshotWith(client);
+    const snapshot = await loadEditorSnapshotWith(client, side);
     await client.query("commit");
     transactionOpen = false;
     return snapshot;
@@ -568,8 +600,10 @@ function contactWasDisabled(
  * contact instead, preserving the historical data behind invitation records.
  */
 export async function saveDatabaseWeddingContentEditor(
-  input: DatabaseWeddingContentEditorInput
+  input: DatabaseWeddingContentEditorInput,
+  side: WeddingSide = "groom"
 ): Promise<DatabaseWeddingContentSaveResult> {
+  requireWeddingSide(side);
   const client = await getDatabasePool().connect();
   let transactionOpen = false;
 
@@ -581,12 +615,12 @@ export async function saveDatabaseWeddingContentEditor(
     // the schedule. The table locks serialize content edits and keep the
     // revision check deterministic without granting table-wide privileges on
     // invitation records to the runtime database role.
-    await lockDatabaseContentAndInvitationIssue(client);
+    await lockDatabaseContentAndInvitationIssue(client, side);
     await client.query(
       "lock table wedding.settings, wedding.events, wedding.contacts in share row exclusive mode"
     );
 
-    const current = await loadEditorSnapshotWith(client);
+    const current = await loadEditorSnapshotWith(client, side);
     if (current.revision !== input.revision) {
       await client.query("rollback");
       transactionOpen = false;
@@ -595,6 +629,15 @@ export async function saveDatabaseWeddingContentEditor(
 
     const existingEventIds = new Set(current.events.map((event) => event.id));
     const submittedEventIds = new Set(input.events.map((event) => event.id));
+    const { rows: conflictingEvents } = await client.query<{ id: string }>(
+      "select id from wedding.events where id = any($1::text[]) and side <> $2",
+      [[...submittedEventIds], side]
+    );
+    if (conflictingEvents.length > 0) {
+      await client.query("rollback");
+      transactionOpen = false;
+      return { kind: "event_side_conflict" };
+    }
     if ([...existingEventIds].some((id) => !submittedEventIds.has(id))) {
       await client.query("rollback");
       transactionOpen = false;
@@ -613,7 +656,9 @@ export async function saveDatabaseWeddingContentEditor(
       `select contact_role, event_limits, access_expires_at
          from wedding.invitations
         where status = 'active'
-          and access_expires_at > now()`
+          and access_expires_at > now()
+          and side = $1`,
+      [side]
     );
     const archivedEventIds = new Set(eventWasArchived(current.events, input.events));
     if (activeReferences.some((reference) => invitationEventIds(reference.event_limits).some((id) => archivedEventIds.has(id)))) {
@@ -636,13 +681,13 @@ export async function saveDatabaseWeddingContentEditor(
       return { kind: "link_expiry_conflict" };
     }
 
-    const primaryContact = createWeddingContact("groom", input.settings.coordinatorName, input.settings.coordinatorPhone);
+    const primaryContact = createWeddingContact(side, input.settings.coordinatorName, input.settings.coordinatorPhone);
     if (!primaryContact) throw new Error("The coordination contact is invalid.");
     const guestContent = persistableGuestContent(input.settings.guestContent);
 
     await client.query(
       `insert into wedding.settings (
-         id,
+         id, side,
          couple_names_en, couple_names_hi,
          wedding_date_en, wedding_date_hi,
          location_en, location_hi,
@@ -652,7 +697,7 @@ export async function saveDatabaseWeddingContentEditor(
          announcement_starts_at, announcement_ends_at,
          guest_content
        ) values (
-         1,
+         $17, $18,
          $1, $2,
          $3, $4,
          $5, $6,
@@ -679,7 +724,8 @@ export async function saveDatabaseWeddingContentEditor(
          announcement_starts_at = excluded.announcement_starts_at,
          announcement_ends_at = excluded.announcement_ends_at,
          guest_content = excluded.guest_content,
-         updated_at = now()`,
+         updated_at = now()
+       where wedding.settings.side = excluded.side`,
       [
         input.settings.coupleNamesEn,
         input.settings.coupleNamesHi,
@@ -696,28 +742,29 @@ export async function saveDatabaseWeddingContentEditor(
         input.settings.announcementHi || null,
         normalizedInputNullableTimestamp(input.settings.announcementStartsAt),
         normalizedInputNullableTimestamp(input.settings.announcementEndsAt),
-        guestContent ? JSON.stringify(guestContent) : null
+        guestContent ? JSON.stringify(guestContent) : null,
+        weddingSideSettingsId(side), side
       ]
     );
 
     for (const contactInput of input.contacts) {
       const contact = normalizedContact(contactInput);
       await client.query(
-        `insert into wedding.contacts (role, name, phone, is_active)
-         values ($1, $2, $3, $4)
-         on conflict (role) do update set
+        `insert into wedding.contacts (role, name, phone, is_active, side)
+         values ($1, $2, $3, $4, $5)
+         on conflict (side, role) do update set
            name = excluded.name,
            phone = excluded.phone,
            is_active = excluded.is_active,
            updated_at = now()`,
-        [contact.role, contact.name, contact.phone, contact.isActive]
+        [contact.role, contact.name, contact.phone, contact.isActive, side]
       );
     }
 
     for (const event of input.events) {
-      await client.query(
+      const { rows: savedEvents } = await client.query<{ id: string }>(
         `insert into wedding.events (
-           id, slug,
+           id, slug, side,
            title_en, title_hi, date_en, date_hi,
            start_time_en, start_time_hi,
            arrival_window_en, arrival_window_hi,
@@ -726,10 +773,11 @@ export async function saveDatabaseWeddingContentEditor(
            entry_note_en, entry_note_hi,
            dress_code_en, dress_code_hi,
            practical_note_en, practical_note_hi,
+           description_en, description_hi, popup_details,
            category, published, display_order,
            default_selected, default_adult_limit, default_child_limit
          ) values (
-           $1, $2,
+           $1, $2, $33,
            $3, $4, $5, $6,
            $7, $8,
            $9, $10,
@@ -738,8 +786,9 @@ export async function saveDatabaseWeddingContentEditor(
            $18, $19,
            $20, $21,
            $22, $23,
-           $24, $25, $26,
-           $27, $28, $29
+           $24, $25, $26::jsonb,
+           $27, $28, $29,
+           $30, $31, $32
          )
          on conflict (id) do update set
            slug = excluded.slug,
@@ -764,13 +813,18 @@ export async function saveDatabaseWeddingContentEditor(
            dress_code_hi = excluded.dress_code_hi,
            practical_note_en = excluded.practical_note_en,
            practical_note_hi = excluded.practical_note_hi,
+           description_en = excluded.description_en,
+           description_hi = excluded.description_hi,
+           popup_details = excluded.popup_details,
            category = excluded.category,
            published = excluded.published,
            display_order = excluded.display_order,
            default_selected = excluded.default_selected,
            default_adult_limit = excluded.default_adult_limit,
            default_child_limit = excluded.default_child_limit,
-           updated_at = now()`,
+           updated_at = now()
+         where wedding.events.side = excluded.side
+         returning id`,
         [
           event.id, event.slug,
           event.titleEn, event.titleHi, event.dateEn, event.dateHi,
@@ -781,13 +835,20 @@ export async function saveDatabaseWeddingContentEditor(
           event.entryNoteEn, event.entryNoteHi,
           event.dressCodeEn, event.dressCodeHi,
           event.practicalNoteEn, event.practicalNoteHi,
+          event.descriptionEn, event.descriptionHi, JSON.stringify(event.popupDetails),
           event.category, event.published, event.displayOrder,
-          event.defaultSelected, event.defaultAdultLimit, event.defaultChildLimit
+          event.defaultSelected, event.defaultAdultLimit, event.defaultChildLimit,
+          side
         ]
       );
+      if (savedEvents.length !== 1) {
+        await client.query("rollback");
+        transactionOpen = false;
+        return { kind: "event_side_conflict" };
+      }
     }
 
-    const snapshot = await loadEditorSnapshotWith(client);
+    const snapshot = await loadEditorSnapshotWith(client, side);
     await client.query("commit");
     transactionOpen = false;
     return { kind: "saved", snapshot };

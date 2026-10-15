@@ -6,6 +6,6 @@ import { requireCoordinatorWorkspace } from "@/lib/server/coordinator-access";
 export const metadata: Metadata = { title: "Follow-ups" };
 
 export default async function CoordinatorFollowUpsPage() {
-  const { invitations, issuerOptions } = await requireCoordinatorWorkspace();
-  return <CoordinatorFollowUps invitations={invitations} issuerOptions={issuerOptions} />;
+  const { invitations, issuerOptions, side } = await requireCoordinatorWorkspace();
+  return <CoordinatorFollowUps side={side} invitations={invitations} issuerOptions={issuerOptions} />;
 }

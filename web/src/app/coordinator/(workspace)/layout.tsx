@@ -13,11 +13,11 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function CoordinatorWorkspaceLayout({ children }: { children: ReactNode }) {
-  const { invitations } = await requireCoordinatorWorkspace();
+  const { invitations, side } = await requireCoordinatorWorkspace();
   const totals = summariseRows(activeInvitationRows(invitations));
 
   return (
-    <CoordinatorShell replied={totals.replied} followUps={totals.followUps}>
+    <CoordinatorShell side={side} replied={totals.replied} followUps={totals.followUps}>
       {children}
     </CoordinatorShell>
   );

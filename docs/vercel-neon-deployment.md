@@ -77,28 +77,30 @@ Import or paste each file's variables into **its corresponding Vercel project �
 | API project only | Website project only |
 | --- | --- |
 | `DATABASE_URL` | `BACKEND_URL` |
-| `DATABASE_INVITATION_TOKEN_PEPPER` | `COORDINATOR_PASSWORD` |
-| `DATABASE_ENTRY_PASS_TOKEN_PEPPER` | `COORDINATOR_SESSION_SECRET` |
-| `PUBLIC_APP_ORIGIN` | `COORDINATOR_TOTP_SECRET` |
-| `BACKEND_SERVICE_TOKEN` | `PUBLIC_APP_ORIGIN` |
+| `DATABASE_INVITATION_TOKEN_PEPPER` | `COORDINATOR_GROOM_PASSWORD` |
+| `DATABASE_ENTRY_PASS_TOKEN_PEPPER` | `COORDINATOR_BRIDE_PASSWORD` |
+| `PUBLIC_APP_ORIGIN` | `COORDINATOR_SESSION_SECRET` |
+| `BACKEND_SERVICE_TOKEN` | `COORDINATOR_GROOM_TOTP_SECRET` |
+| | `COORDINATOR_BRIDE_TOTP_SECRET` |
+| | `PUBLIC_APP_ORIGIN` |
 | | `BACKEND_SERVICE_TOKEN` |
 
-The generator uses the same service token in both files and separate random values for every other secret. Vercel supplies `VERCEL=1` and the production Node environment automatically. Do not set `LOCAL_STACK_MODE` on Vercel. Do not use `NEXT_PUBLIC_` for credentials. Avoid copying real production credentials into Preview or Development environments; use a separate database and secrets for staging.
+The generator uses the same service token in both files and separate random values for every other secret, including each team's password and authenticator key. Existing `COORDINATOR_PASSWORD` and `COORDINATOR_TOTP_SECRET` remain groom-only fallbacks when the corresponding `GROOM` values are absent; the bride team always needs its own values. Vercel supplies `VERCEL=1` and the production Node environment automatically. Do not set `LOCAL_STACK_MODE` on Vercel. Do not use `NEXT_PUBLIC_` for credentials. Avoid copying real production credentials into Preview or Development environments; use a separate database and secrets for staging.
 
 Redeploy the API first, then the website, so the new environment variables take effect. Vercel's deployment authentication must allow the stable production aliases to be reachable: guests need the website, and the frontend needs the API. The API's own service-token validation rejects unauthenticated business requests. If Vercel returns a login page or redirect for the API domain, check **Deployment Protection** and ensure you're using the production alias instead of a protected preview/deployment URL.
 
-## 5. Enroll your authenticator and enter wedding content
+## 5. Enroll each team's authenticator and enter wedding content
 
-Open `.deployment/authenticator.txt` privately. In Google Authenticator, 1Password, Authy, or another TOTP app, choose **add account → enter setup key** and enter the generated key as a time-based account. The parameters are SHA1, six digits, and a 30-second period. Keep the setup file private so you can recover access if your phone is replaced.
+Open `.deployment/authenticator-groom.txt` and `.deployment/authenticator-bride.txt` privately with the corresponding team's operator. In Google Authenticator, 1Password, Authy, or another TOTP app, choose **add account → enter setup key** and enroll each generated key as a separate time-based account. The parameters are SHA1, six digits, and a 30-second period. Keep the setup files private so each team can recover access if a phone is replaced. Older generated `.deployment/authenticator.txt` still holds the existing groom key; do not replace it when upgrading.
 
-Open `https://YOUR-WEBSITE.vercel.app/coordinator`. Sign in using `COORDINATOR_PASSWORD` from `.deployment/web.env` and the current six-digit authenticator code. A successful code is consumed once; wait for the next 30-second code before signing in from another browser. The shared replay record lasts two minutes. This is one coordinator credential with MFA; it does not reproduce AWS Cognito's separate named operator accounts. Do not distribute the coordinator credentials to guests.
+Open `https://YOUR-WEBSITE.vercel.app/coordinator/g` for the groom team or `/coordinator/b` for the bride team. Sign in with that team's password from `.deployment/web.env` and its current six-digit authenticator code. A successful code is consumed once; wait for the next 30-second code before signing in from another browser for the same team. The replay record lasts two minutes. A coordinator session is bound to its team's workspace and cannot read or mutate the other team's data. Do not distribute coordinator credentials to guests.
 
-On **Content**, enter the reviewed couple, contact, event, deadline, and venue details. Then issue a synthetic invitation and check the guest flow before creating real household invitations. The invitation's raw link is shown once, so save or privately share it from the issuance panel.
+In each team's **Content** workspace, enter the reviewed couple, contact, event, deadline, and venue details for that team's invitation. Each event can include a bilingual introduction and custom labels and values shown when guests choose its name. Then issue a synthetic invitation and check the guest flow before creating real household invitations. New links use `/i/g/[token]` or `/i/b/[token]`, while existing `/i/[token]` links remain valid. The invitation's raw link is shown once, so save or privately share it from the issuance panel.
 
 ## 6. Check the live deployment
 
 1. Check the website's `/healthz` and `/readyz`; readiness should return 200.
-2. Open `/coordinator` in a signed-out browser and confirm it requires sign-in. A wrong password or code must fail.
+2. Open `/coordinator/g` and `/coordinator/b` in signed-out browsers and confirm each requires its own sign-in. A wrong password or code must fail, and a session for one side must not enter the other side's workspace.
 3. Issue one synthetic invitation, open it privately, submit an RSVP, reload it, and confirm the response persists.
 4. Check calendar download, coordinator responses, QR check-in, duplicate check-in, revocation, and response erasure using synthetic data.
 5. Revoke the test invitation and erase its response before sending real invitations.
@@ -111,6 +113,18 @@ Do not run the disposable local smoke scripts against Neon or the live deploymen
 The copied source does not include the original database or local secret files. If you already issued invitations or collected real responses, migrate the `wedding` schema/data separately using an owner-side PostgreSQL backup and restore, then apply the updated schema and grants. Preserve the original `DATABASE_INVITATION_TOKEN_PEPPER` and `DATABASE_ENTRY_PASS_TOKEN_PEPPER` in the new API environment: newly generated peppers cannot resolve old links or passes. Review backup/restore with the original database before changing it. Invitation URLs still use the original website address until you privately redistribute the new domain's links or retain that domain.
 
 For a new wedding database, the fresh generated peppers and coordinator-entered content are sufficient. Do not load `database/test-fixtures.sql` into Neon production.
+
+## Upgrade an existing single workspace
+
+Keep the existing `.env` and `.deployment/` files. Both generators refuse to overwrite existing credentials. `COORDINATOR_PASSWORD` and `COORDINATOR_TOTP_SECRET` continue to authenticate the groom team unless explicit `COORDINATOR_GROOM_PASSWORD` and `COORDINATOR_GROOM_TOTP_SECRET` values replace them. Privately add a new, different `COORDINATOR_BRIDE_PASSWORD` to the frontend environment. On Vercel also add a new `COORDINATOR_BRIDE_TOTP_SECRET`, then enroll that key in the bride team's authenticator with SHA1, six digits, and a 30-second period. Keep the existing service token, session secret, database credentials, and invitation/pass peppers. An existing local stack needs only the new bride password for its password-only mode; the root `.env` remains ignored and should retain restrictive permissions.
+
+Deploy in this order:
+
+1. Apply `api/database/schema.sql` and `api/database/grant-runtime-role.sql` using the existing owner tooling. The migration assigns existing settings, events, invitations, and responses to the groom side and preserves issued links and QR credentials. The bride content starts independently. PostgreSQL does not need to restart.
+2. Deploy the API and confirm its authenticated `/v1/status` response includes `sideIsolation: true` before enabling the bride workspace.
+3. Deploy the frontend with the reviewed team credentials. For Podman, replace only the application services using the existing Compose project and volume. Do not recreate PostgreSQL or apply synthetic fixtures to the persistent database.
+
+Verify both sides with synthetic invitations in the disposable stack: each team must have its own content and response list, and cross-side reads, edits, revocation, RSVP correction, and check-in must fail. Review the production schema migration separately; the disposable smoke scripts must never target Neon or the persistent wedding database.
 
 ## Free-plan operation
 
@@ -131,3 +145,5 @@ peppers do not change. Invitation images are included in the private route's
 server bundle through output tracing and their old public image URLs return
 404. Keep only the generic share preview and attribution documents in
 `web/public/images/`.
+
+The updated frontend signs coordinator sessions with their owning side. Existing coordinator cookies require a fresh sign-in after the upgrade; issued guest links and welcome-pass credentials remain valid. A browser has one active coordinator team session, so use separate browser profiles when both teams share a device.

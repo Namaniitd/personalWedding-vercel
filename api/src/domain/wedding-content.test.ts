@@ -111,6 +111,34 @@ describe("database wedding content mapping", () => {
     })).toBeUndefined();
   });
 
+  it("maps an optional bilingual invitation lead and trims its text", () => {
+    const guestContent = { hero: { invitationLead: { en: "  Join our celebration.  ", hi: "  हमारे उत्सव में शामिल हों।  " } } };
+    const expected = { hero: { invitationLead: { en: "Join our celebration.", hi: "हमारे उत्सव में शामिल हों।" } } };
+    expect(parseWeddingGuestContent(guestContent)).toEqual(expected);
+    expect(mapWeddingSettings({ ...settingsRow, guest_content: guestContent })?.guestContent).toEqual(expected);
+
+    const maximum = { hero: { invitationLead: { en: "a".repeat(600), hi: "अ".repeat(600) } } };
+    expect(parseWeddingGuestContent(maximum)).toEqual(maximum);
+    expect(parseWeddingGuestContent({ hero: {} })).toEqual({ hero: {} });
+  });
+
+  it("rejects incomplete, malformed and overlong invitation lead translations", () => {
+    const invalidLeads = [
+      "Join us.",
+      null,
+      { en: "Join us." },
+      { en: "Join us.", hi: "" },
+      { en: "   ", hi: "आमंत्रण" },
+      { en: 42, hi: "आमंत्रण" },
+      { en: "Join us.", hi: "आमंत्रण", html: "<b>Unexpected</b>" },
+      { en: "a".repeat(601), hi: "आमंत्रण" },
+      { en: "Join us.", hi: "अ".repeat(601) }
+    ];
+    for (const invitationLead of invalidLeads) {
+      expect(parseWeddingGuestContent({ hero: { invitationLead } })).toBeUndefined();
+    }
+  });
+
   it("rejects unsafe event rows and orders valid database events deterministically", () => {
     const mapped = mapWeddingEvent(eventRow);
     expect(mapped?.event.mapsUrl).toBe("https://maps.example/venue");
@@ -128,5 +156,38 @@ describe("database wedding content mapping", () => {
     if (!mapped || !earlier) throw new Error("Test event rows must map.");
     expect(orderWeddingEvents([mapped, earlier]).map((event) => event.id))
       .toEqual(["celebration-two", "celebration-one"]);
+  });
+
+  it("maps bilingual event descriptions and custom popup fields in their saved order", () => {
+    const popupDetails = [
+      { label: { en: "Shuttle", hi: "शटल" }, value: { en: "Meet at the main gate.", hi: "मुख्य द्वार पर मिलें।" } },
+      { label: { en: "Family tradition", hi: "पारिवारिक परंपरा" }, value: { en: "Bring your blessings.", hi: "अपना आशीर्वाद दें।" } }
+    ];
+    expect(mapWeddingEvent({
+      ...eventRow,
+      description_en: "  Join our celebration.  ",
+      description_hi: "  हमारे समारोह में शामिल हों।  ",
+      popup_details: popupDetails
+    })?.event).toMatchObject({
+      description: { en: "Join our celebration.", hi: "हमारे समारोह में शामिल हों।" },
+      popupDetails
+    });
+  });
+
+  it("keeps valid event logistics when optional descriptions or popup fields are malformed", () => {
+    const cases = [
+      { description_en: "English only", description_hi: "" },
+      { description_en: "a".repeat(2_401), description_hi: "विवरण" },
+      { description_en: { html: "Unexpected" }, description_hi: "विवरण" },
+      { popup_details: [{ label: { en: "Parking", hi: "पार्किंग" }, value: { en: "Main gate", hi: "मुख्य द्वार" }, html: "<script>unexpected()</script>" }] },
+      { popup_details: [{ label: { en: "Parking", hi: "" }, value: { en: "Main gate", hi: "मुख्य द्वार" } }] },
+      { popup_details: Array.from({ length: 9 }, () => ({ label: { en: "Label", hi: "शीर्षक" }, value: { en: "Text", hi: "पाठ" } })) }
+    ];
+    for (const optionalContent of cases) {
+      const event = mapWeddingEvent({ ...eventRow, ...optionalContent })?.event;
+      expect(event?.id).toBe(eventRow.id);
+      expect(event?.description).toBeUndefined();
+      expect(event?.popupDetails).toBeUndefined();
+    }
   });
 });

@@ -282,7 +282,7 @@ describe("private API contract", () => {
     const response = await handleApiRequest(apiRequest("/v1/coordinator/rsvp", "POST", input));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, updatedAt: "2099-12-30T10:00:00.000Z" });
-    expect(mocks.saveCoordinatorRSVP).toHaveBeenCalledWith(input);
+    expect(mocks.saveCoordinatorRSVP).toHaveBeenCalledWith(input, "groom");
     expect(mocks.resolveInvitation).not.toHaveBeenCalled();
     expect(mocks.saveDatabaseRSVP).not.toHaveBeenCalled();
     for (const [kind, status] of [["stale", 409], ["not_found", 404], ["invalid", 422]] as const) {
@@ -291,5 +291,88 @@ describe("private API contract", () => {
     }
     expect((await handleApiRequest(apiRequest("/v1/coordinator/rsvp", "POST", { ...input, token: invitationToken }))).status).toBe(400);
     expect((await handleApiRequest(apiRequest("/v1/coordinator/rsvp", "POST", { ...input, status: "declined" }))).status).toBe(400);
+  });
+
+  it("binds coordinator reads and corrections to the trusted side while rejecting body overrides", async () => {
+    mocks.getIssuerOptions.mockResolvedValue({ side: "bride", events: [], defaultEventLimits: [], contactOptions: [], defaultContactRole: "bride" });
+    mocks.listInvitations.mockResolvedValue([]);
+    const workspace = apiRequest("/v1/coordinator/workspace");
+    workspace.headers.set("X-Wedding-Side", "bride");
+    expect((await handleApiRequest(workspace)).status).toBe(200);
+    expect(mocks.getIssuerOptions).toHaveBeenCalledWith("bride");
+    expect(mocks.listInvitations).toHaveBeenCalledWith("bride");
+
+    const input = {
+      invitationId: "3810429c-b718-4ff8-b9bd-b6df41d85f1b", respondentName: "Side response",
+      status: "attending", attendances: [{ eventId: "event-one", attending: true, adults: 1, children: 0 }], expectedUpdatedAt: null
+    };
+    const correction = apiRequest("/v1/coordinator/rsvp", "POST", input);
+    correction.headers.set("X-Wedding-Side", "bride");
+    expect((await handleApiRequest(correction)).status).toBe(200);
+    expect(mocks.saveCoordinatorRSVP).toHaveBeenCalledWith(input, "bride");
+
+    const forged = apiRequest("/v1/coordinator/rsvp", "POST", { ...input, side: "groom" });
+    forged.headers.set("X-Wedding-Side", "bride");
+    expect((await handleApiRequest(forged)).status).toBe(400);
+    expect(mocks.saveCoordinatorRSVP).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects malformed coordinator sides before reading private data and advertises the isolation contract", async () => {
+    for (const path of ["workspace", "content", "invitations"]) {
+      const request = apiRequest(`/v1/coordinator/${path}`);
+      request.headers.set("X-Wedding-Side", "unknown");
+      expect((await handleApiRequest(request)).status).toBe(400);
+    }
+    expect(mocks.getIssuerOptions).not.toHaveBeenCalled();
+    expect(mocks.listInvitations).not.toHaveBeenCalled();
+    expect(mocks.loadContent).not.toHaveBeenCalled();
+    await expect((await handleApiRequest(apiRequest("/v1/status"))).json()).resolves.toMatchObject({ sideIsolation: true });
+  });
+
+  it("accepts an expected public invitation side without giving it coordinator authority", async () => {
+    const request = apiRequest("/v1/invitations/resolve", "POST", { token: invitationToken, side: "bride" });
+    expect((await handleApiRequest(request)).status).toBe(200);
+    expect(mocks.resolveInvitation).toHaveBeenCalledWith(invitationToken, "bride");
+    expect((await handleApiRequest(apiRequest("/v1/invitations/resolve", "POST", { token: invitationToken, side: "unknown" }))).status).toBe(400);
+    expect(mocks.getIssuerOptions).not.toHaveBeenCalled();
+  });
+
+  it("defaults an omitted reply-to role to the owner while checking explicit alternates in that same workspace", async () => {
+    mocks.validateIssue.mockImplementation(async (value) => ({ ok: true, value }));
+    mocks.validateContact.mockResolvedValue({ ok: true });
+    mocks.issueInvitation.mockResolvedValue({ id: "3810429c-b718-4ff8-b9bd-b6df41d85f1b", side: "bride" });
+    const input = { householdNameEn: "Bride fixture household", eventLimits: [{ eventId: "b-event-one", adults: 2, children: 0 }] };
+    const omitted = apiRequest("/v1/coordinator/invitations", "POST", input);
+    omitted.headers.set("X-Wedding-Side", "bride");
+    expect((await handleApiRequest(omitted)).status).toBe(200);
+    expect(mocks.validateContact).toHaveBeenLastCalledWith("bride", "bride");
+    expect(mocks.issueInvitation).toHaveBeenLastCalledWith(expect.objectContaining({ contactRole: "bride" }), "bride");
+
+    const explicit = apiRequest("/v1/coordinator/invitations", "POST", { ...input, contactRole: "groom" });
+    explicit.headers.set("X-Wedding-Side", "bride");
+    expect((await handleApiRequest(explicit)).status).toBe(200);
+    expect(mocks.validateContact).toHaveBeenLastCalledWith("groom", "bride");
+    expect(mocks.issueInvitation).toHaveBeenLastCalledWith(expect.objectContaining({ contactRole: "groom" }), "bride");
+
+    mocks.validateContact.mockResolvedValueOnce({ ok: false, message: "Configure the alternate contact." });
+    const missingAlternate = apiRequest("/v1/coordinator/invitations", "POST", { ...input, contactRole: "groom" });
+    missingAlternate.headers.set("X-Wedding-Side", "bride");
+    expect((await handleApiRequest(missingAlternate)).status).toBe(422);
+    expect(mocks.issueInvitation).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the legacy issuance response strict while exposing ownership to scoped clients", async () => {
+    const input = { householdNameEn: "Groom fixture household", eventLimits: [{ eventId: "event-one", adults: 2, children: 0 }] };
+    const issued = { id: "3810429c-b718-4ff8-b9bd-b6df41d85f1b", side: "groom", createdAt: "2099-01-01T00:00:00.000Z", token: invitationToken, householdName: { en: "Groom fixture household", hi: "Groom fixture household" }, eventCount: 1, contactRole: "groom" };
+    mocks.validateIssue.mockImplementation(async (value) => ({ ok: true, value }));
+    mocks.validateContact.mockResolvedValue({ ok: true });
+    mocks.issueInvitation.mockResolvedValue(issued);
+    const { side: _side, ...legacyIssued } = issued;
+    await expect((await handleApiRequest(apiRequest("/v1/coordinator/invitations", "POST", input))).json()).resolves.toEqual({ ok: true, issued: legacyIssued });
+    const scoped = apiRequest("/v1/coordinator/invitations", "POST", input);
+    scoped.headers.set("X-Wedding-Side", "groom");
+    await expect((await handleApiRequest(scoped)).json()).resolves.toEqual({ ok: true, issued });
+    mocks.mode.mockReturnValue("hosted");
+    await expect((await handleApiRequest(apiRequest("/v1/status"))).json()).resolves.toMatchObject({ sideIsolation: false });
   });
 });

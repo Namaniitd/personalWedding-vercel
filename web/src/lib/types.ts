@@ -1,5 +1,8 @@
 export type Locale = "en" | "hi";
 
+/** Private coordinator and invitation ownership, independent of reply-to contacts. */
+export type WeddingSide = "groom" | "bride";
+
 export type LocalizedText = Record<Locale, string>;
 
 /**
@@ -36,6 +39,7 @@ export interface WeddingGuestContent {
   hero?: {
     invocation?: string;
     region?: LocalizedText;
+    invitationLead?: LocalizedText;
     artworkKey?: WeddingArtworkKey;
     artworkAlt?: LocalizedText;
   };
@@ -81,6 +85,12 @@ export interface GuestLimit {
   children: number;
 }
 
+/** Optional, bilingual plain-text information shown in an event popup. */
+export interface WeddingEventPopupDetail {
+  label: LocalizedText;
+  value: LocalizedText;
+}
+
 export interface WeddingEvent {
   id: string;
   title: LocalizedText;
@@ -95,10 +105,14 @@ export interface WeddingEvent {
   entryNote: LocalizedText;
   dressCode: LocalizedText;
   practicalNote: LocalizedText;
+  description?: LocalizedText;
+  popupDetails?: WeddingEventPopupDetail[];
   category: "celebration" | "ceremony" | "reception";
 }
 
 export interface Invitation {
+  /** Omitted only by older deployment contracts. */
+  side?: WeddingSide;
   token: string;
   householdName: LocalizedText;
   preferredLocale: Locale;
@@ -184,6 +198,8 @@ export interface DatabaseInvitationContactOption {
  * invitation token, hash, database URL, or other server secret.
  */
 export interface DatabaseInvitationIssuerOptions {
+  /** Omitted only by older deployment contracts. */
+  side?: WeddingSide;
   events: DatabaseInvitationEventOption[];
   defaultEventLimits: Array<GuestLimit & { eventId: string }>;
   contactOptions: DatabaseInvitationContactOption[];
@@ -247,6 +263,9 @@ export interface DatabaseWeddingContentEvent {
   dressCodeHi: string;
   practicalNoteEn: string;
   practicalNoteHi: string;
+  descriptionEn: string;
+  descriptionHi: string;
+  popupDetails: WeddingEventPopupDetail[];
   category: WeddingEvent["category"];
   published: boolean;
   displayOrder: number;
@@ -264,6 +283,8 @@ export interface DatabaseWeddingContentContact {
 
 /** A complete, safe snapshot used by the coordinator content editor. */
 export interface DatabaseWeddingContentSnapshot {
+  /** Omitted only by older deployment contracts. */
+  side?: WeddingSide;
   /** Null only while an empty database is being configured for the first time. */
   revision: string | null;
   settings: DatabaseWeddingContentSettings;

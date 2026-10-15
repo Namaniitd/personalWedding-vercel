@@ -39,7 +39,7 @@ describe("private page proxy", () => {
   it("redirects unsigned coordinator pages and rejects unsigned coordinator APIs", async () => {
     const page = await proxy(new NextRequest("http://localhost/coordinator"));
     expect(page.status).toBe(307);
-    expect(page.headers.get("location")).toBe("http://localhost/coordinator/login");
+    expect(page.headers.get("location")).toBe("http://localhost/coordinator/g");
     expect(page.headers.get("content-security-policy")).toContain("nonce-");
     const api = await proxy(new NextRequest("http://localhost/api/coordinator/invitations"));
     expect(api.status).toBe(401);
@@ -49,7 +49,7 @@ describe("private page proxy", () => {
   it("allows a valid signed session and does not expose disabled coordinator APIs", async () => {
     const session = createCoordinatorSession();
     if (!session) throw new Error("Expected a signed test session.");
-    const request = new NextRequest("http://localhost/coordinator", {
+    const request = new NextRequest("http://localhost/coordinator/g", {
       headers: { Cookie: `${COORDINATOR_SESSION_COOKIE}=${session}` }
     });
     expect((await proxy(request)).status).toBe(200);
@@ -67,6 +67,20 @@ describe("private page proxy", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("content-security-policy")).toContain("nonce-");
+  });
+
+  it("rewrites side pages with a trusted scope and rejects the other side's cookie", async () => {
+    vi.stubEnv("COORDINATOR_BRIDE_PASSWORD", "test-bride-password-123456789012345");
+    backend.getBackendStatus.mockResolvedValue({ mode: "database", coordinatorAvailable: true, sideIsolation: true });
+    const session = createCoordinatorSession(Date.now(), "bride");
+    const headers = { Cookie: `${COORDINATOR_SESSION_COOKIE}=${session}`, "x-coordinator-side": "groom" };
+    const page = await proxy(new NextRequest("http://localhost/coordinator/b/content", { headers }));
+    expect(page.headers.get("x-middleware-rewrite")).toBe("http://localhost/coordinator/content");
+    expect(page.headers.get("x-middleware-request-x-coordinator-side")).toBe("bride");
+    expect((await proxy(new NextRequest("http://localhost/api/coordinator/g/content", { headers }))).status).toBe(401);
+    expect((await proxy(new NextRequest("http://localhost/api/coordinator/b/content", { headers }))).status).toBe(200);
+    backend.getBackendStatus.mockResolvedValue({ mode: "database", coordinatorAvailable: true });
+    expect((await proxy(new NextRequest("http://localhost/api/coordinator/b/content", { headers }))).status).toBe(404);
   });
 
   it.each([3000, 3001, 3002])("does not upgrade requests in the explicit local HTTP stack on port %s", async (port) => {

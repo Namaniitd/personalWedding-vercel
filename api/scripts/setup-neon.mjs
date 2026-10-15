@@ -68,7 +68,15 @@ try {
   const runtimeClient = new Client({ connectionString: runtimeUrl.toString(), connectionTimeoutMillis: 15_000 });
   try {
     await runtimeClient.connect();
-    await runtimeClient.query("select 1 from wedding.settings limit 1");
+    await runtimeClient.query("select id, side from wedding.settings limit 1");
+    const { rows: permissionChecks } = await runtimeClient.query(`select
+      has_column_privilege(current_user, 'wedding.invitations', 'side', 'SELECT')
+        and has_column_privilege(current_user, 'wedding.invitations', 'side', 'INSERT')
+        and not has_column_privilege(current_user, 'wedding.invitations', 'side', 'UPDATE')
+        and has_function_privilege(current_user, 'wedding.save_coordinator_rsvp(uuid,jsonb,timestamptz,text)', 'EXECUTE')
+        and has_function_privilege(current_user, 'wedding.coordinator_session(text,text,timestamptz,text)', 'EXECUTE')
+        and not has_table_privilege(current_user, 'wedding.coordinator_sessions', 'SELECT') as ok`);
+    if (permissionChecks[0]?.ok !== true) throw new Error("The side-scoped runtime grants are incomplete.");
   } finally {
     await runtimeClient.end();
   }

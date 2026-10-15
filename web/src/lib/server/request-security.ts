@@ -3,6 +3,9 @@ import { isIP } from "node:net";
 
 import type { NextRequest } from "next/server";
 
+import type { WeddingSide } from "@/lib/types";
+import { coordinatorSideFromPath, isWeddingSide } from "@/lib/wedding-side";
+
 import { isLocalStackPublicOrigin } from "@/lib/server/local-stack";
 import { decodeTotpSecret, matchingTotpCounter } from "@/lib/server/coordinator-totp";
 import { manageCoordinatorSession } from "@/lib/server/coordinator-session-store";
@@ -19,7 +22,7 @@ const MAX_COORDINATOR_SESSION_LENGTH = 256;
 // The ALB may shard its Cognito session across four cookies. Keep a generous
 // bound for that gateway header while validating our own cookie separately.
 const MAX_COOKIE_HEADER_LENGTH = 24 * 1_024;
-const COORDINATOR_SESSION_VERSION = "v1";
+const COORDINATOR_SESSION_VERSION = "v2";
 
 type PublicAppOriginConfiguration =
   | { status: "absent" }
@@ -204,106 +207,81 @@ export function isSameOriginRequest(request: NextRequest) {
   return actualOrigin === expectedOrigin;
 }
 
-function coordinatorPassword() {
-  const password = process.env.COORDINATOR_PASSWORD;
-  if (
-    !password
-    || password.length < MIN_COORDINATOR_PASSWORD_LENGTH
+function coordinatorPassword(side: WeddingSide = "groom"): string | null {
+  const password = side === "bride"
+    ? process.env.COORDINATOR_BRIDE_PASSWORD
+    : process.env.COORDINATOR_GROOM_PASSWORD ?? process.env.COORDINATOR_PASSWORD;
+  if (!password || password.length < MIN_COORDINATOR_PASSWORD_LENGTH
     || password.length > MAX_COORDINATOR_PASSWORD_LENGTH
-    || /[\u0000-\u001f\u007f]/.test(password)
-  ) {
-    return null;
-  }
+    || /[\u0000-\u001f\u007f]/.test(password)) return null;
+  // A shared password would give either team access to the other workspace.
+  if (side === "bride" && password === coordinatorPassword("groom")) return null;
   return password;
 }
 
-/**
- * Database coordinator tools are deliberately unavailable until an operator
- * has supplied a sufficiently long password and session key. Vercel production
- * also requires an authenticator key; supplying a key enables MFA locally too.
- */
-export function isCoordinatorAuthConfigured() {
-  return coordinatorPassword() !== null && coordinatorSessionSecret() !== null
-    && (!isCoordinatorTotpRequired() || coordinatorTotpSecret() !== null);
+export function isCoordinatorAuthConfigured(side: WeddingSide = "groom") {
+  return coordinatorPassword(side) !== null && coordinatorSessionSecret() !== null
+    && (!isCoordinatorTotpRequired(side) || coordinatorTotpSecret(side) !== null);
 }
 
-export function isCoordinatorTotpRequired() {
+export function isCoordinatorTotpRequired(side: WeddingSide = "groom") {
   return (process.env.NODE_ENV === "production" && process.env.VERCEL === "1")
-    || Boolean(process.env.COORDINATOR_TOTP_SECRET);
+    || Boolean(side === "bride" ? process.env.COORDINATOR_BRIDE_TOTP_SECRET
+      : process.env.COORDINATOR_GROOM_TOTP_SECRET ?? process.env.COORDINATOR_TOTP_SECRET);
 }
 
-function coordinatorTotpSecret() {
-  return decodeTotpSecret(process.env.COORDINATOR_TOTP_SECRET);
+function coordinatorTotpSecret(side: WeddingSide = "groom") {
+  return decodeTotpSecret(side === "bride" ? process.env.COORDINATOR_BRIDE_TOTP_SECRET
+    : process.env.COORDINATOR_GROOM_TOTP_SECRET ?? process.env.COORDINATOR_TOTP_SECRET);
 }
 
-/** No secret or generated code is returned to browser-facing components. */
-export function coordinatorTotpCounter(code: string | undefined, now = Date.now()) {
-  const secret = coordinatorTotpSecret();
+export function coordinatorTotpCounter(code: string | undefined, now = Date.now(), side: WeddingSide = "groom") {
+  const secret = coordinatorTotpSecret(side);
   return secret ? matchingTotpCounter(secret, code, now) : null;
 }
 
-/** A non-secret, rotation-specific key for shared one-time-code consumption. */
-export function coordinatorTotpReplayIdentifier(counter: number) {
-  const secret = coordinatorTotpSecret();
-  if (!secret) return null;
-  return `coordinator-login:totp:${createHash("sha256").update(secret).digest("base64url")}:${counter}`;
+export function coordinatorTotpReplayIdentifier(counter: number, side: WeddingSide = "groom") {
+  const secret = coordinatorTotpSecret(side);
+  return secret ? `coordinator-login:${side}:totp:${createHash("sha256").update(secret).digest("base64url")}:${counter}` : null;
 }
 
-/**
- * Compare a submitted local coordinator password without retaining it in a
- * browser credential or exposing it to client-side code.
- */
-export function isAuthorizedCoordinatorPassword(candidate: string) {
-  const password = coordinatorPassword();
+export function isAuthorizedCoordinatorPassword(candidate: string, side: WeddingSide = "groom") {
+  const password = coordinatorPassword(side);
   if (!password || candidate.length > MAX_COORDINATOR_PASSWORD_LENGTH) return false;
-
   const expected = Buffer.from(password, "utf8");
   const supplied = Buffer.from(candidate, "utf8");
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
 function coordinatorSessionSecret() {
-  const sessionSecret = process.env.COORDINATOR_SESSION_SECRET;
-  return sessionSecret && /^[A-Za-z0-9_-]{32,256}$/.test(sessionSecret) ? sessionSecret : null;
+  const secret = process.env.COORDINATOR_SESSION_SECRET;
+  return secret && /^[A-Za-z0-9_-]{32,256}$/.test(secret) ? secret : null;
 }
 
-function coordinatorSessionSigningKey() {
-  const password = coordinatorPassword();
-  const sessionSecret = coordinatorSessionSecret();
-  if (!password || !sessionSecret || !isCoordinatorAuthConfigured()) return null;
-
-  // The frontend has its own session secret and never receives a database
-  // pepper. Including the coordinator password invalidates sessions on
-  // password rotation without turning a cookie into a password oracle.
-  return createHmac("sha256", sessionSecret)
-    .update("shaadi-companion:coordinator-session-key:v1\0", "utf8")
-    .update(password, "utf8")
-    .update("\0", "utf8")
-    .update(coordinatorTotpSecret() ?? Buffer.alloc(0))
-    .digest();
+function coordinatorSessionSigningKey(side: WeddingSide) {
+  const password = coordinatorPassword(side), secret = coordinatorSessionSecret();
+  if (!password || !secret || !isCoordinatorAuthConfigured(side)) return null;
+  return createHmac("sha256", secret)
+    .update(`shaadi-companion:coordinator-session-key:v2:${side}\0`, "utf8")
+    .update(password, "utf8").update("\0", "utf8")
+    .update(coordinatorTotpSecret(side) ?? Buffer.alloc(0)).digest();
 }
 
 function coordinatorSessionSignature(payload: string, key: Buffer) {
-  return createHmac("sha256", key)
-    .update(`shaadi-companion:coordinator-session:v1:${payload}`, "utf8")
-    .digest("base64url");
+  return createHmac("sha256", key).update(`shaadi-companion:coordinator-session:v2:${payload}`, "utf8").digest("base64url");
 }
 
-/** Create an opaque, signed, short-lived coordinator session after sign-in. */
-export function createCoordinatorSession(now = Date.now()) {
-  const key = coordinatorSessionSigningKey();
+export function createCoordinatorSession(now = Date.now(), side: WeddingSide = "groom") {
+  const key = coordinatorSessionSigningKey(side);
   if (!key || !Number.isFinite(now) || now < 0) return null;
-
   const expiresAt = Math.floor(now / 1_000) + COORDINATOR_SESSION_MAX_AGE_SECONDS;
-  const nonce = randomBytes(24).toString("base64url");
-  const payload = `${COORDINATOR_SESSION_VERSION}.${expiresAt}.${nonce}`;
+  const payload = `${COORDINATOR_SESSION_VERSION}.${side}.${expiresAt}.${randomBytes(24).toString("base64url")}`;
   return `${payload}.${coordinatorSessionSignature(payload, key)}`;
 }
 
 function coordinatorSessionFromHeaders(headers: Headers) {
   const cookieHeader = headers.get("cookie");
   if (!cookieHeader || cookieHeader.length > MAX_COOKIE_HEADER_LENGTH) return null;
-
   let value: string | null = null;
   for (const part of cookieHeader.split(";")) {
     const separator = part.indexOf("=");
@@ -314,72 +292,62 @@ function coordinatorSessionFromHeaders(headers: Headers) {
   return value;
 }
 
-/** Verify the signature before sending only a digest to the shared store. */
 function coordinatorSessionIdentity(value: string | null | undefined, now = Date.now()) {
   if (!value || value.length > MAX_COORDINATOR_SESSION_LENGTH || !Number.isFinite(now) || now < 0) return null;
-
   const parts = value.split(".");
-  if (parts.length !== 4) return null;
-  const [version, expiresAtText, nonce, signature] = parts;
-  if (
-    version !== COORDINATOR_SESSION_VERSION
-    || !/^[1-9]\d{0,11}$/.test(expiresAtText)
-    || !/^[A-Za-z0-9_-]{32}$/.test(nonce)
-    || !/^[A-Za-z0-9_-]{43}$/.test(signature)
-  ) return null;
-
+  if (parts.length !== 5) return null;
+  const [version, side, expiresAtText, nonce, signature] = parts;
+  if (version !== COORDINATOR_SESSION_VERSION || !isWeddingSide(side)
+    || !/^[1-9]\d{0,11}$/.test(expiresAtText) || !/^[A-Za-z0-9_-]{32}$/.test(nonce)
+    || !/^[A-Za-z0-9_-]{43}$/.test(signature)) return null;
   const expiresAt = Number(expiresAtText);
   if (!Number.isSafeInteger(expiresAt) || expiresAt <= Math.floor(now / 1_000)
     || expiresAt > Math.floor(now / 1_000) + COORDINATOR_SESSION_MAX_AGE_SECONDS) return null;
-
-  const key = coordinatorSessionSigningKey();
+  const key = coordinatorSessionSigningKey(side);
   if (!key) return null;
-  const payload = `${version}.${expiresAtText}.${nonce}`;
-  const expected = Buffer.from(coordinatorSessionSignature(payload, key), "utf8");
+  const expected = Buffer.from(coordinatorSessionSignature(`${version}.${side}.${expiresAtText}.${nonce}`, key), "utf8");
   const supplied = Buffer.from(signature, "utf8");
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
-  return { sessionHash: createHash("sha256").update(value).digest("hex"), expiresAt: new Date(expiresAt * 1_000).toISOString() };
+  return { side, sessionHash: createHash("sha256").update(value).digest("hex"), expiresAt: new Date(expiresAt * 1_000).toISOString() };
 }
 
-/** Register before issuing a cookie; unsigned or unregistered cookies cannot log in. */
 export async function registerCoordinatorSession(value: string) {
   const identity = coordinatorSessionIdentity(value);
   return identity ? manageCoordinatorSession({ action: "register", ...identity }) : false;
 }
 
-export async function isAuthorizedCoordinatorSession(value: string | null | undefined, now = Date.now()) {
+export async function isAuthorizedCoordinatorSession(value: string | null | undefined, now = Date.now(), side?: WeddingSide) {
   const identity = coordinatorSessionIdentity(value, now);
-  return identity ? manageCoordinatorSession({ action: "validate", sessionHash: identity.sessionHash }) : false;
+  return identity && (!side || identity.side === side)
+    ? manageCoordinatorSession({ action: "validate", sessionHash: identity.sessionHash, side: identity.side }) : false;
 }
 
-/** Revocation is durable before the browser is told that sign-out succeeded. */
+export async function authorizedCoordinatorSide(headers: Headers): Promise<WeddingSide | null> {
+  const identity = coordinatorSessionIdentity(coordinatorSessionFromHeaders(headers));
+  return identity && await manageCoordinatorSession({ action: "validate", sessionHash: identity.sessionHash, side: identity.side }) ? identity.side : null;
+}
+
 export async function revokeCoordinatorSession(headers: Headers) {
   const identity = coordinatorSessionIdentity(coordinatorSessionFromHeaders(headers));
-  return identity ? manageCoordinatorSession({ action: "revoke", sessionHash: identity.sessionHash }) : false;
+  return identity ? manageCoordinatorSession({ action: "revoke", sessionHash: identity.sessionHash, side: identity.side }) : false;
 }
 
-/** Cookie options for the signed coordinator session. */
 export function coordinatorSessionCookieOptions(request: NextRequest, maxAge = COORDINATOR_SESSION_MAX_AGE_SECONDS) {
-  return {
-    httpOnly: true,
-    maxAge,
-    path: "/",
-    sameSite: "strict" as const,
-    // A production request can reach Next over internal HTTP after TLS has
-    // terminated at a proxy. The public coordinator session must still be
-    // Secure in that deployment.
+  return { httpOnly: true, maxAge, path: "/", sameSite: "strict" as const,
     secure: process.env.VERCEL === "1" || (!isDevelopmentOrTestRuntime() && !isLocalStackPublicOrigin())
-      || request.nextUrl.protocol === "https:"
-  };
+      || request.nextUrl.protocol === "https:" };
 }
 
-/** Authorize coordinator requests from a signed HttpOnly session cookie. */
-export function isAuthorizedCoordinatorHeaders(headers: Headers) {
-  return isAuthorizedCoordinatorSession(coordinatorSessionFromHeaders(headers));
+export function isAuthorizedCoordinatorHeaders(headers: Headers, side?: WeddingSide) {
+  return isAuthorizedCoordinatorSession(coordinatorSessionFromHeaders(headers), Date.now(), side);
+}
+
+export function coordinatorRequestSide(request: NextRequest): WeddingSide {
+  return coordinatorSideFromPath(request.nextUrl.pathname) ?? "groom";
 }
 
 export function isAuthorizedCoordinatorRequest(request: NextRequest) {
-  return isAuthorizedCoordinatorHeaders(request.headers);
+  return isAuthorizedCoordinatorHeaders(request.headers, coordinatorRequestSide(request));
 }
 
 function normalizeIp(candidate: string | undefined) {

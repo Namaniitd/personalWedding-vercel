@@ -19,10 +19,15 @@ Production use also requires
 [`grant-runtime-role.sql`](../api/database/grant-runtime-role.sql) as the schema
 owner after creating that login role; see [`api/README.md`](../api/README.md).
 
-In the local stack, open `/coordinator` and use **Content** to create the first
-settings row, named reply-to contacts, and event rows. The editor writes to the
-private API and can update the same records later. It needs a reviewed English
-and Hindi name, date, location, RSVP deadline, edit cutoff, and coordinator
+Fresh local Compose databases apply `api/database/content.local.sql` after the
+schema to create separate groom and bride settings, named reply-to contacts,
+and a suggested Haryana wedding schedule. The seed includes placeholder times,
+exact addresses, RSVP cutoffs, and phone numbers that need review. Existing
+database volumes keep their saved content. Open `/coordinator/g` or
+`/coordinator/b` and use **Content** to review that team's configuration. The
+editor writes to the private API and can update the same records later. It
+needs a reviewed English and Hindi name, date, location, RSVP deadline, edit
+cutoff, and coordinator
 contact. For each event, review both languages, start/end times, venue,
 address, map URL, arrival notes, dress code, guest limits, and publication
 state. Publish an event only when its guest-facing details are ready. Keep
@@ -39,7 +44,9 @@ in the source and project ZIP. It is not a database export. For an independently
 exposed *loopback* PostgreSQL instance, an operator may apply the reviewed seed
 with `pnpm --dir api content:apply` and `api/.env.local`. That command refuses
 non-loopback database hosts. The root Podman stack intentionally does not
-publish its database port; use the Content editor there.
+publish its database port; use the Content editor there, or the explicit
+container-local reapply command in the root README after reviewing the seed.
+Reapplying replaces matching seed content but does not delete other records.
 
 ## Hosted Supabase
 

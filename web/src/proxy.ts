@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { coordinatorPath, coordinatorSideFromPath } from "@/lib/wedding-side";
 import type { NextRequest } from "next/server";
 
 import { getBackendStatus } from "@/lib/server/backend-client";
@@ -6,7 +7,7 @@ import { isLocalStackPublicOrigin } from "@/lib/server/local-stack";
 import { takeRateLimit } from "@/lib/server/rate-limit";
 import {
   clientNetworkIdentifier,
-  isAuthorizedCoordinatorRequest
+  authorizedCoordinatorSide
 } from "@/lib/server/request-security";
 
 function contentSecurityPolicy(nonce: string) {
@@ -38,7 +39,7 @@ function isCoordinatorPath(pathname: string) {
 }
 
 function isCoordinatorLoginPath(pathname: string) {
-  return pathname === "/coordinator/login" || pathname === "/api/coordinator/login";
+  return /^\/(?:api\/)?coordinator\/(?:[gb]\/)?login$/.test(pathname);
 }
 
 function isCoordinatorApiPath(pathname: string) {
@@ -67,8 +68,8 @@ function coordinatorAccessResponse(
   );
 }
 
-function coordinatorLoginRedirect(request: NextRequest, csp: string) {
-  const response = NextResponse.redirect(new URL("/coordinator/login", request.url));
+function coordinatorLoginRedirect(request: NextRequest, csp: string, side: "groom" | "bride" = "groom") {
+  const response = NextResponse.redirect(new URL(coordinatorPath(side, "login"), request.url));
   response.headers.set("Cache-Control", "private, no-store, max-age=0");
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("Referrer-Policy", "no-referrer");
@@ -88,23 +89,30 @@ export async function proxy(request: NextRequest) {
   const csp = contentSecurityPolicy(nonce);
   const pathname = request.nextUrl.pathname;
   // Media handlers perform their own invitation lookup and separate rate limit.
-  const isInvitationPage = pathname.startsWith("/i/") && !/^\/i\/[^/]+\/media(?:\/|$)/.test(pathname);
+  const isInvitationPage = pathname.startsWith("/i/") && !/^\/i\/(?:[gb]\/)?[^/]+\/media(?:\/|$)/.test(pathname);
   const needsBackendStatus = isCoordinatorPath(pathname) || isInvitationPage;
   const backendStatus = needsBackendStatus ? await getBackendStatus().catch(() => null) : null;
 
-  // The sign-in page remains reachable when database configuration is missing
-  // so it can explain how to restore coordinator access. Every other workspace
-  // page redirects there, and route handlers repeat the authorization checks.
+  const routeSide = coordinatorSideFromPath(pathname);
   if (isCoordinatorPath(pathname)) {
-    if (backendStatus && !backendStatus.coordinatorAvailable && !isCoordinatorLoginPath(pathname)) {
-      return isCoordinatorApiPath(pathname)
-        ? coordinatorAccessResponse(404, csp)
-        : coordinatorLoginRedirect(request, csp);
+    const signedSide = await authorizedCoordinatorSide(request.headers);
+    // Canonical side URLs also bind mutations from old tabs to their own team.
+    if (!isCoordinatorApiPath(pathname) && !routeSide) {
+      const suffix = pathname.slice("/coordinator".length).replace(/^\//, "");
+      const target = new URL(coordinatorPath(signedSide ?? "groom", suffix), request.url);
+      target.search = request.nextUrl.search;
+      const response = NextResponse.redirect(target);
+      response.headers.set("Cache-Control", "private, no-store, max-age=0");
+      response.headers.set("Content-Security-Policy", csp);
+      response.headers.set("Referrer-Policy", "no-referrer");
+      return response;
     }
-    if (!isCoordinatorLoginPath(pathname) && !await isAuthorizedCoordinatorRequest(request)) {
-      return isCoordinatorApiPath(pathname)
-        ? coordinatorAccessResponse(401, csp)
-        : coordinatorLoginRedirect(request, csp);
+    const side = routeSide ?? "groom";
+    if (backendStatus && (!backendStatus.coordinatorAvailable || (side === "bride" && !backendStatus.sideIsolation)) && !isCoordinatorLoginPath(pathname)) {
+      return isCoordinatorApiPath(pathname) ? coordinatorAccessResponse(404, csp) : coordinatorLoginRedirect(request, csp, side);
+    }
+    if (!isCoordinatorLoginPath(pathname) && signedSide !== side) {
+      return isCoordinatorApiPath(pathname) ? coordinatorAccessResponse(401, csp) : coordinatorLoginRedirect(request, csp, side);
     }
   }
 
@@ -143,10 +151,15 @@ export async function proxy(request: NextRequest) {
   }
 
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-coordinator-side");
+  if (routeSide) requestHeaders.set("x-coordinator-side", routeSide);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  const scopedPage = /^\/coordinator\/[gb](\/.*)?$/.exec(pathname);
+  const response = scopedPage
+    ? NextResponse.rewrite(new URL(`/coordinator${scopedPage[1] ?? ""}${request.nextUrl.search}`, request.url), { request: { headers: requestHeaders } })
+    : NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
   return response;
 }

@@ -27,7 +27,7 @@ begin
     raise exception 'Connect as the owner of the wedding schema before granting runtime access';
   end if;
   if (select pg_get_userbyid(proowner) from pg_proc
-       where oid = 'wedding.save_coordinator_rsvp(uuid,jsonb,timestamptz)'::regprocedure)
+       where oid = 'wedding.save_coordinator_rsvp(uuid,jsonb,timestamptz,text)'::regprocedure)
      is distinct from v_schema_owner then
     raise exception 'The coordinator RSVP function must be owned by the wedding schema owner';
   end if;
@@ -37,7 +37,7 @@ begin
     raise exception 'The shared rate-limit function must be owned by the wedding schema owner';
   end if;
   if (select pg_get_userbyid(proowner) from pg_proc
-       where oid = 'wedding.coordinator_session(text,text,timestamptz)'::regprocedure)
+       where oid = 'wedding.coordinator_session(text,text,timestamptz,text)'::regprocedure)
      is distinct from v_schema_owner then
     raise exception 'The coordinator session function must be owned by the wedding schema owner';
   end if;
@@ -79,12 +79,12 @@ grant select, insert, update on wedding.settings, wedding.contacts, wedding.even
 -- The invitation link is returned once. The legacy token_ciphertext column is
 -- never selected or written by this API and receives no runtime privilege.
 grant select (
-  id, lock_marker, token_hash, household_name_en, household_name_hi,
+  id, side, lock_marker, token_hash, household_name_en, household_name_hi,
   preferred_locale, contact_role, event_limits, status, access_expires_at,
   revoked_at, rsvp_deleted_at, created_at
 ) on wedding.invitations to :"runtime_role";
 grant insert (
-  id, token_hash, household_name_en, household_name_hi, preferred_locale,
+  id, side, token_hash, household_name_en, household_name_hi, preferred_locale,
   contact_role, event_limits, access_expires_at
 ) on wedding.invitations to :"runtime_role";
 grant update (lock_marker, status, revoked_at, rsvp_deleted_at)
@@ -100,11 +100,15 @@ grant delete on wedding.rsvps to :"runtime_role";
 -- the cutoff exception and audit table; ordinary guest writes retain the trigger.
 grant execute on function wedding.save_coordinator_rsvp(uuid, jsonb, timestamptz)
   to :"runtime_role";
+grant execute on function wedding.save_coordinator_rsvp(uuid, jsonb, timestamptz, text)
+  to :"runtime_role";
 -- The API can consume hashed counters without reading, changing, deleting, or
 -- manufacturing bucket rows. The frontend has no PostgreSQL credentials.
 grant execute on function wedding.take_rate_limit(text, integer, integer)
   to :"runtime_role";
 grant execute on function wedding.coordinator_session(text, text, timestamptz)
+  to :"runtime_role";
+grant execute on function wedding.coordinator_session(text, text, timestamptz, text)
   to :"runtime_role";
 
 grant select on wedding.entry_passes to :"runtime_role";

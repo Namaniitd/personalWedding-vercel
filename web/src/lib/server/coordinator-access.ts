@@ -2,34 +2,28 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import type { WeddingSide } from "@/lib/types";
+import { coordinatorPath, isWeddingSide } from "@/lib/wedding-side";
 import { getBackendCoordinatorWorkspace, getBackendStatus } from "@/lib/server/backend-client";
 import { isAuthorizedCoordinatorHeaders } from "@/lib/server/request-security";
 
-/**
- * Every coordinator route repeats the same gate, so keep it in one place: the
- * workspace is database-backed and behind the signed coordinator session.
- */
-export async function requireCoordinatorAccess() {
+export async function requireCoordinatorAccess(): Promise<WeddingSide> {
   const requestHeaders = await headers();
-  if (!await isAuthorizedCoordinatorHeaders(requestHeaders)) redirect("/coordinator/login");
+  // Proxy replaces this header from the URL and clears any client copy.
+  const configuredSide = requestHeaders.get("x-coordinator-side");
+  const side = isWeddingSide(configuredSide) ? configuredSide : "groom";
+  if (!await isAuthorizedCoordinatorHeaders(requestHeaders, side)) redirect(coordinatorPath(side, "login"));
   const status = await getBackendStatus().catch(() => null);
-  if (status && !status.coordinatorAvailable) redirect("/coordinator/login");
+  if (status && (!status.coordinatorAvailable || (side === "bride" && !status.sideIsolation))) redirect(coordinatorPath(side, "login"));
+  return side;
 }
 
-/**
- * `cache` keeps the layout and its page from issuing the same queries twice
- * while rendering a single request.
- */
-export const loadCoordinatorWorkspace = cache(async () => {
-  // A connection failure is actionable for a signed-in coordinator. Do not
-  // send them to the guest invitation 404, which incorrectly implies that a
-  // bearer link was revoked or expired.
-  const workspace = await getBackendCoordinatorWorkspace().catch(() => null);
-  if (!workspace) redirect("/coordinator/unavailable");
-  return workspace;
+export const loadCoordinatorWorkspace = cache(async (side: WeddingSide = "groom") => {
+  const workspace = await getBackendCoordinatorWorkspace(side).catch(() => null);
+  if (!workspace) redirect(coordinatorPath(side, "unavailable"));
+  return { ...workspace, side };
 });
 
 export async function requireCoordinatorWorkspace() {
-  await requireCoordinatorAccess();
-  return loadCoordinatorWorkspace();
+  return loadCoordinatorWorkspace(await requireCoordinatorAccess());
 }

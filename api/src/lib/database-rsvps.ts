@@ -9,7 +9,8 @@ import { databaseEnvironmentRequestsVerifiedTls, databaseUrlConfiguration } from
 import { syncDatabaseEntryPassInTransaction } from "./database-entry-passes.js";
 import { isLocalStackDatabase } from "./local-stack.js";
 import { hasConfiguredCanonicalPublicOrigin } from "./public-origin.js";
-import type { EntryPass, RSVPInput, RSVPRecord } from "../domain/types.js";
+import type { EntryPass, RSVPInput, RSVPRecord, WeddingSide } from "../domain/types.js";
+import { requireWeddingSide, weddingSideSettingsId } from "../domain/wedding-side.js";
 
 type DatabaseRsvpRow = {
   respondent_name: string;
@@ -25,6 +26,7 @@ type TimestampRow = Pick<DatabaseRsvpRow, "updated_at">;
 type LockedDatabaseInvitationRow = {
   id: string;
   token_hash: string;
+  side: WeddingSide;
 };
 
 type DatabaseRsvpWindowRow = {
@@ -179,12 +181,13 @@ function normalizeTimestamp(value: Date | string) {
  * generic database error. The trigger repeats this immediately before the
  * insert/update, so a clock change after this read still fails closed.
  */
-async function requireDatabaseRsvpWindowOpen(client: PoolClient) {
+async function requireDatabaseRsvpWindowOpen(client: PoolClient, side: WeddingSide) {
   const { rows } = await client.query<DatabaseRsvpWindowRow>(
     `select can_edit_until
        from wedding.settings
-      where id = 1
-      limit 1`
+      where id = $1 and side = $2
+      limit 1`,
+    [weddingSideSettingsId(side), side]
   );
   const cutoff = rows[0]?.can_edit_until;
   const cutoffTime = cutoff instanceof Date ? cutoff.getTime() : Date.parse(cutoff ?? "");
@@ -242,7 +245,7 @@ export async function saveDatabaseRSVP(input: RSVPInput): Promise<DatabaseRsvpSa
     // Revocation and entry scanning take the same lock, so an RSVP can never
     // create a usable pass after the link was disabled.
     const { rows: invitationRows } = await client.query<LockedDatabaseInvitationRow>(
-      `select id, token_hash
+      `select id, token_hash, side
          from wedding.invitations
         where token_hash = $1
           and status = 'active'
@@ -253,7 +256,8 @@ export async function saveDatabaseRSVP(input: RSVPInput): Promise<DatabaseRsvpSa
     const invitation = invitationRows[0];
     if (!invitation) throw new Error("The invitation is no longer active.");
 
-    await requireDatabaseRsvpWindowOpen(client);
+    const side = requireWeddingSide(invitation.side);
+    await requireDatabaseRsvpWindowOpen(client, side);
 
     const { rows } = await client.query<TimestampRow>(
       `insert into wedding.rsvps (
@@ -282,6 +286,7 @@ export async function saveDatabaseRSVP(input: RSVPInput): Promise<DatabaseRsvpSa
     const entryPass = await syncDatabaseEntryPassInTransaction(client, {
       invitationId: invitation.id,
       invitationToken: parsed.data.token,
+      side,
       rsvp: { status: parsed.data.status, attendances: parsed.data.attendances }
     });
 

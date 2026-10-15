@@ -134,7 +134,8 @@ end;
 $$;
 
 create table if not exists wedding.settings (
-  id smallint primary key default 1 check (id = 1),
+  id smallint primary key default 1,
+  side text not null default 'groom',
   couple_names_en text not null check (char_length(couple_names_en) between 1 and 160),
   couple_names_hi text not null check (char_length(couple_names_hi) between 1 and 160),
   wedding_date_en text not null check (char_length(wedding_date_en) between 1 and 160),
@@ -152,6 +153,7 @@ create table if not exists wedding.settings (
   announcement_ends_at timestamptz,
   guest_content jsonb check (guest_content is null or jsonb_typeof(guest_content) = 'object'),
   updated_at timestamptz not null default now(),
+  constraint settings_side_id_check check ((id = 1 and side = 'groom') or (id = 2 and side = 'bride')),
   constraint settings_rsvp_window_check check (can_edit_until <= rsvp_deadline),
   constraint settings_announcement_window_check check (
     announcement_ends_at is null
@@ -160,17 +162,51 @@ create table if not exists wedding.settings (
   )
 );
 
+-- Preserve all previously configured content as the groom workspace. The
+-- former reply-to role was a contact choice, not ownership of private data.
+alter table wedding.settings add column if not exists side text not null default 'groom';
+alter table wedding.settings drop constraint if exists settings_id_check;
+alter table wedding.settings drop constraint if exists wedding_settings_id_check;
+alter table wedding.settings drop constraint if exists settings_side_id_check;
+alter table wedding.settings add constraint settings_side_id_check
+  check ((id = 1 and side = 'groom') or (id = 2 and side = 'bride'));
+
 create table if not exists wedding.contacts (
-  role text primary key check (role in ('groom', 'bride')),
+  side text not null default 'groom' check (side in ('groom', 'bride')),
+  role text not null check (role in ('groom', 'bride')),
   name text not null check (char_length(name) between 1 and 80),
   phone text not null check (char_length(phone) between 1 and 40),
   is_active boolean not null default true,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  primary key (side, role)
 );
+
+alter table wedding.contacts add column if not exists side text not null default 'groom';
+alter table wedding.contacts drop constraint if exists contacts_side_check;
+alter table wedding.contacts add constraint contacts_side_check check (side in ('groom', 'bride'));
+do $$
+declare
+  v_primary_key text;
+begin
+  select conname into v_primary_key from pg_constraint
+    where conrelid = 'wedding.contacts'::regclass and contype = 'p';
+  if v_primary_key is not null and (
+    select pg_get_constraintdef(oid) from pg_constraint
+    where conrelid = 'wedding.contacts'::regclass and conname = v_primary_key
+  ) <> 'PRIMARY KEY (side, role)' then
+    execute format('alter table wedding.contacts drop constraint %I', v_primary_key);
+    v_primary_key := null;
+  end if;
+  if v_primary_key is null then
+    alter table wedding.contacts add constraint contacts_pkey primary key (side, role);
+  end if;
+end;
+$$;
 
 create table if not exists wedding.events (
   id text primary key check (id ~ '^[a-z0-9-]{1,100}$'),
-  slug text not null unique check (slug ~ '^[a-z0-9-]{1,100}$'),
+  side text not null default 'groom' check (side in ('groom', 'bride')),
+  slug text not null check (slug ~ '^[a-z0-9-]{1,100}$'),
   title_en text not null check (char_length(title_en) between 1 and 180),
   title_hi text not null check (char_length(title_hi) between 1 and 180),
   date_en text not null check (char_length(date_en) between 1 and 180),
@@ -192,6 +228,9 @@ create table if not exists wedding.events (
   dress_code_hi text not null check (char_length(dress_code_hi) between 1 and 300),
   practical_note_en text not null check (char_length(practical_note_en) between 1 and 600),
   practical_note_hi text not null check (char_length(practical_note_hi) between 1 and 600),
+  description_en text not null default '' check (char_length(description_en) <= 2400),
+  description_hi text not null default '' check (char_length(description_hi) <= 2400),
+  popup_details jsonb not null default '[]'::jsonb,
   category text not null default 'celebration' check (category in ('celebration', 'ceremony', 'reception')),
   published boolean not null default false,
   display_order smallint not null default 0,
@@ -199,10 +238,34 @@ create table if not exists wedding.events (
   default_adult_limit smallint not null default 2 check (default_adult_limit between 0 and 30),
   default_child_limit smallint not null default 0 check (default_child_limit between 0 and 30),
   updated_at timestamptz not null default now(),
+  constraint events_side_slug_key unique (side, slug),
+  constraint events_popup_details_check check (jsonb_typeof(popup_details) = 'array' and jsonb_array_length(popup_details) <= 8),
   constraint events_default_guest_limit_check check (
     not default_selected or default_adult_limit + default_child_limit > 0
   )
 );
+
+alter table wedding.events add column if not exists side text not null default 'groom';
+alter table wedding.events drop constraint if exists events_side_check;
+alter table wedding.events add constraint events_side_check check (side in ('groom', 'bride'));
+alter table wedding.events drop constraint if exists events_slug_key;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'wedding.events'::regclass and conname = 'events_side_slug_key') then
+    alter table wedding.events add constraint events_side_slug_key unique (side, slug);
+  end if;
+end;
+$$;
+alter table wedding.events add column if not exists description_en text not null default '';
+alter table wedding.events add column if not exists description_hi text not null default '';
+alter table wedding.events add column if not exists popup_details jsonb not null default '[]'::jsonb;
+alter table wedding.events drop constraint if exists events_description_en_check;
+alter table wedding.events add constraint events_description_en_check check (char_length(description_en) <= 2400);
+alter table wedding.events drop constraint if exists events_description_hi_check;
+alter table wedding.events add constraint events_description_hi_check check (char_length(description_hi) <= 2400);
+alter table wedding.events drop constraint if exists events_popup_details_check;
+alter table wedding.events add constraint events_popup_details_check
+  check (jsonb_typeof(popup_details) = 'array' and jsonb_array_length(popup_details) <= 8);
 
 create index if not exists events_published_order_idx
   on wedding.events (display_order, start_at, id)
@@ -228,6 +291,7 @@ create table if not exists wedding.rsvps (
 -- access. Newly issued links can be copied only from their issuance response.
 create table if not exists wedding.invitations (
   id uuid primary key,
+  side text not null default 'groom' check (side in ('groom', 'bride')),
   -- This fixed marker exists solely to grant the application permission for
   -- SELECT ... FOR UPDATE without granting writes to invitation data.
   lock_marker smallint not null default 1 constraint invitations_lock_marker_check check (lock_marker = 1),
@@ -254,6 +318,10 @@ create table if not exists wedding.invitations (
   ),
   created_at timestamptz not null default now()
 );
+
+alter table wedding.invitations add column if not exists side text not null default 'groom';
+alter table wedding.invitations drop constraint if exists invitations_side_check;
+alter table wedding.invitations add constraint invitations_side_check check (side in ('groom', 'bride'));
 
 -- Upgrade tables created before revocation and contact-role support. The
 -- updates are deterministic and retain all invitation links.
@@ -405,6 +473,50 @@ create trigger rsvps_updated_at
 before update on wedding.rsvps
 for each row execute function wedding.set_rsvp_updated_at();
 
+-- Issued links and event IDs are durable references. Moving either record to
+-- another workspace would expose old private relationships to that side.
+create or replace function wedding.require_immutable_side()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $$
+begin
+  if new.side is distinct from old.side then
+    raise exception 'Record ownership cannot be changed.' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists invitations_immutable_side on wedding.invitations;
+create trigger invitations_immutable_side
+before update of side on wedding.invitations
+for each row execute function wedding.require_immutable_side();
+drop trigger if exists events_immutable_side on wedding.events;
+create trigger events_immutable_side
+before update of side on wedding.events
+for each row execute function wedding.require_immutable_side();
+
+create or replace function wedding.require_invitation_events_for_side()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $$
+begin
+  if exists (
+    select 1 from jsonb_object_keys(new.event_limits) as chosen(event_id)
+    left join wedding.events as events on events.id = chosen.event_id and events.side = new.side
+    where events.id is null
+  ) then
+    raise exception 'Invitation events must belong to its workspace.' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists invitations_require_same_side_events on wedding.invitations;
+create trigger invitations_require_same_side_events
+before insert or update of event_limits, side on wedding.invitations
+for each row execute function wedding.require_invitation_events_for_side();
+
 -- Access expiry is an explicit per-link property. It is checked again by the
 -- resolver and QR lifecycle triggers, but this guard prevents an operator
 -- from creating a link that expires before RSVP closes.
@@ -419,7 +531,7 @@ begin
   select rsvp_deadline
     into v_rsvp_deadline
     from wedding.settings
-   where id = 1
+   where side = new.side
    for share;
 
   if not found then
@@ -458,9 +570,10 @@ declare
   invitation_status text;
   invitation_access_expires_at timestamptz;
   invitation_can_edit_until timestamptz;
+  invitation_side text;
 begin
-  select status, access_expires_at
-    into invitation_status, invitation_access_expires_at
+  select status, access_expires_at, side
+    into invitation_status, invitation_access_expires_at, invitation_side
     from wedding.invitations
    where token_hash = new.token_hash
    for share;
@@ -480,7 +593,7 @@ begin
   select can_edit_until
     into invitation_can_edit_until
     from wedding.settings
-   where id = 1;
+   where side = invitation_side;
 
   if (invitation_can_edit_until is null
     or invitation_can_edit_until <= clock_timestamp())
@@ -488,7 +601,7 @@ begin
       coalesce(current_setting('wedding.coordinator_rsvp_write', true), '') = new.token_hash
       and current_user = (
         select pg_get_userbyid(proowner) from pg_proc
-         where oid = to_regprocedure('wedding.save_coordinator_rsvp(uuid,jsonb,timestamptz)')
+         where oid = to_regprocedure('wedding.save_coordinator_rsvp(uuid,jsonb,timestamptz,text)')
       )
     ) then
     raise exception 'Online RSVP is closed.'
@@ -652,14 +765,15 @@ declare
   v_pass_status text;
   v_invitation_status text;
   v_invitation_access_expires_at timestamptz;
+  v_invitation_side text;
   v_rsvp_status text;
   v_attendances jsonb;
   v_adults smallint;
   v_children smallint;
 begin
-  select passes.status, invitations.status, invitations.access_expires_at,
+  select passes.status, invitations.status, invitations.access_expires_at, invitations.side,
          responses.status, responses.attendances
-    into v_pass_status, v_invitation_status, v_invitation_access_expires_at,
+    into v_pass_status, v_invitation_status, v_invitation_access_expires_at, v_invitation_side,
          v_rsvp_status, v_attendances
     from wedding.entry_passes as passes
     join wedding.invitations as invitations on invitations.id = passes.invitation_id
@@ -674,6 +788,10 @@ begin
     or v_rsvp_status is distinct from 'attending' then
     raise exception 'An entry check-in requires an active attending invitation.'
       using errcode = '23514';
+  end if;
+
+  if not exists (select 1 from wedding.events where id = new.event_id and side = v_invitation_side and published) then
+    raise exception 'The event must belong to the invitation workspace.' using errcode = '23514';
   end if;
 
   select
@@ -721,7 +839,7 @@ create table if not exists wedding.coordinator_rsvp_audit (
 -- authorizes the trigger exception. Always use a fixed search path and restore
 -- the marker before returning; no guest INSERT/UPDATE can acquire that identity.
 create or replace function wedding.save_coordinator_rsvp(
-  p_invitation_id uuid, p_payload jsonb, p_expected_updated_at timestamptz
+  p_invitation_id uuid, p_payload jsonb, p_expected_updated_at timestamptz, p_side text
 )
 returns table (outcome text, updated_at timestamptz)
 language plpgsql
@@ -743,8 +861,11 @@ declare
   v_seen text[] := '{}'::text[];
   v_previous_marker text;
 begin
+  if p_side is null or p_side not in ('groom', 'bride') then
+    raise exception 'Invalid coordinator workspace' using errcode = '22023';
+  end if;
   select * into v_invitation from wedding.invitations
-   where id = p_invitation_id and status = 'active'
+   where id = p_invitation_id and side = p_side and status = 'active'
      and access_expires_at > clock_timestamp()
    for update;
   if not found then
@@ -799,7 +920,7 @@ begin
       or jsonb_typeof(v_limit -> 'children') is distinct from 'number'
       or (v_limit ->> 'adults') !~ '^[0-9]{1,2}$'
       or (v_limit ->> 'children') !~ '^[0-9]{1,2}$'
-      or not exists (select 1 from wedding.events where id = v_event_id and published) then
+      or not exists (select 1 from wedding.events where id = v_event_id and side = p_side and published) then
       return query select 'invalid'::text, null::timestamptz;
       return;
     end if;
@@ -838,6 +959,19 @@ begin
   values (v_invitation.id, v_previous_updated_at, v_updated_at);
   return query select 'saved'::text, v_updated_at;
 end;
+$$;
+
+-- Older API deployments remain compatible while the two projects deploy
+-- independently. This signature always addresses the existing groom data.
+create or replace function wedding.save_coordinator_rsvp(
+  p_invitation_id uuid, p_payload jsonb, p_expected_updated_at timestamptz
+)
+returns table (outcome text, updated_at timestamptz)
+language sql
+security invoker
+set search_path = pg_catalog
+as $$
+  select * from wedding.save_coordinator_rsvp(p_invitation_id, p_payload, p_expected_updated_at, 'groom'::text);
 $$;
 
 comment on schema wedding is
@@ -924,16 +1058,20 @@ comment on table wedding.entry_check_ins is
 -- required on every deployment, and revocation applies across function instances.
 create table if not exists wedding.coordinator_sessions (
   session_hash text primary key check (session_hash ~ '^[a-f0-9]{64}$'),
+  side text not null default 'groom' check (side in ('groom', 'bride')),
   created_at timestamptz not null default clock_timestamp(),
   expires_at timestamptz not null,
   revoked_at timestamptz,
   check (expires_at > created_at and expires_at <= created_at + interval '8 hours 1 minute')
 );
+alter table wedding.coordinator_sessions add column if not exists side text not null default 'groom';
+alter table wedding.coordinator_sessions drop constraint if exists coordinator_sessions_side_check;
+alter table wedding.coordinator_sessions add constraint coordinator_sessions_side_check check (side in ('groom', 'bride'));
 create index if not exists coordinator_sessions_expiry_idx
   on wedding.coordinator_sessions (expires_at, session_hash);
 
 create or replace function wedding.coordinator_session(
-  p_action text, p_session_hash text, p_expires_at timestamptz
+  p_action text, p_session_hash text, p_expires_at timestamptz, p_side text
 )
 returns boolean
 language plpgsql
@@ -946,6 +1084,7 @@ declare
   v_now timestamptz := clock_timestamp();
 begin
   if p_session_hash is null or p_session_hash !~ '^[a-f0-9]{64}$'
+    or p_side is null or p_side not in ('groom', 'bride')
     or p_action is null or p_action not in ('register', 'validate', 'revoke') then
     raise exception 'Invalid coordinator session request' using errcode = '22023';
   end if;
@@ -953,13 +1092,13 @@ begin
   if p_action = 'validate' then
     return exists (
       select 1 from wedding.coordinator_sessions
-       where session_hash = p_session_hash and expires_at > v_now and revoked_at is null
+       where session_hash = p_session_hash and side = p_side and expires_at > v_now and revoked_at is null
     );
   end if;
 
   if p_action = 'revoke' then
     update wedding.coordinator_sessions set revoked_at = coalesce(revoked_at, v_now)
-     where session_hash = p_session_hash;
+     where session_hash = p_session_hash and side = p_side;
     return true;
   end if;
 
@@ -972,14 +1111,24 @@ begin
        where expires_at <= v_now order by expires_at, session_hash
        limit 100 for update skip locked
     ) as expired where sessions.session_hash = expired.session_hash;
-  insert into wedding.coordinator_sessions (session_hash, expires_at)
-    values (p_session_hash, p_expires_at) on conflict do nothing;
+  insert into wedding.coordinator_sessions (session_hash, expires_at, side)
+    values (p_session_hash, p_expires_at, p_side) on conflict do nothing;
   -- Retrying registration cannot extend or resurrect a revoked session.
   return exists (
     select 1 from wedding.coordinator_sessions
-     where session_hash = p_session_hash and expires_at = p_expires_at and revoked_at is null
+     where session_hash = p_session_hash and side = p_side and expires_at = p_expires_at and revoked_at is null
   );
 end;
+$$;
+create or replace function wedding.coordinator_session(
+  p_action text, p_session_hash text, p_expires_at timestamptz
+)
+returns boolean
+language sql
+security invoker
+set search_path = pg_catalog
+as $$
+  select wedding.coordinator_session(p_action, p_session_hash, p_expires_at, 'groom'::text);
 $$;
 comment on table wedding.coordinator_sessions is
   'Expiring coordinator session hashes. No raw cookie, password, or guest information is stored.';

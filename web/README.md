@@ -16,7 +16,9 @@ pnpm verify
 
 The browser uses only the frontend origin. On Vercel, `BACKEND_URL` is the separate API's exact HTTPS production `*.vercel.app` origin. Public deployments use an exact HTTPS `PUBLIC_APP_ORIGIN` and leave local mode unset. For host development use `http://127.0.0.1:4000` and omit `PUBLIC_APP_ORIGIN`; `LOCAL_STACK_MODE=1` is only for the documented built-image Podman stack on loopback HTTP.
 
-Vercel coordinator sign-in requires `COORDINATOR_PASSWORD`, `COORDINATOR_SESSION_SECRET`, and `COORDINATOR_TOTP_SECRET`. The authenticator code is verified server-side and consumed once through the API's shared PostgreSQL limiter. Changing the password, session key, or authenticator secret invalidates existing sessions.
+Vercel coordinator sign-in requires `COORDINATOR_GROOM_PASSWORD` and `COORDINATOR_GROOM_TOTP_SECRET` for `/coordinator/g`, and a different `COORDINATOR_BRIDE_PASSWORD` with its own `COORDINATOR_BRIDE_TOTP_SECRET` for `/coordinator/b`. Both use the server-only `COORDINATOR_SESSION_SECRET`. Existing `COORDINATOR_PASSWORD` and `COORDINATOR_TOTP_SECRET` remain groom-only fallbacks. Local password-only sign-in leaves the TOTP keys unset. Each team sees its own content, invitations, responses, and check-in records. The authenticator code is verified server-side and consumed once through the API's shared PostgreSQL limiter. Changing a team's password or authenticator secret invalidates that team's sessions; changing the shared session key invalidates both.
+
+Existing `.env` and `.deployment/` files are preserved by the generators. Add a separate bride password privately; on Vercel also add a separate bride TOTP key and enroll it in that team's authenticator. Keep the existing groom credentials, service/session secrets, and database peppers. Apply the side-aware schema and grants first, then deploy an API reporting `sideIsolation: true`, and finally deploy this frontend. The bride workspace refuses older APIs that lack that capability. See the [upgrade guide](../docs/vercel-neon-deployment.md#upgrade-an-existing-single-workspace).
 
 Signed cookies must also be registered in the API's PostgreSQL session store.
 Every protected request checks that registration without caching a positive
@@ -27,10 +29,13 @@ session schema and runtime grants, deploy the API, then deploy this frontend;
 existing stateless cookies require a fresh sign-in after this upgrade.
 
 Invitation images live in [`private-media/`](private-media/README.md), outside
-the public asset directory. They load through `/i/[token]/media/[asset]` only
+the public asset directory. They load through token-bound private media routes only
 while that invitation is active and unexpired. Those responses are not cached,
 and the Next.js image optimizer cannot fetch them. The generic share preview
-and attribution documents remain public.
+and attribution documents remain public. The hero uses responsive WebP variants
+for its three looping portraits, pauses while the tab is hidden, and starts
+paused for reduced motion. Event names open accessible dialogs containing
+that event's optional description, custom plain-text fields, and visit details.
 
 The frontend owns coordinator sign-in, signed HTTP-only sessions, same-origin checks, rate limits, CSP, private response headers, and the one-time link presentation. A newly issued invitation can be privately shared or copied with bilingual message text. The raw link cannot be recovered after dismissal. The private API owns invitation and RSVP data, content, and check-in decisions; see [`api/README.md`](../api/README.md).
 

@@ -31,7 +31,7 @@ async function downloadText(download) {
 /**
  * Reusable Playwright suite for the disposable, synthetic stack only.
  * Sensitive values remain in this function's memory. Returned diagnostics and
- * caught errors contain stage names only, never browser URLs or credentials.
+ * caught errors contain sanitized stage diagnostics, never browser URLs or credentials.
  */
 export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSABLE_ORIGIN, artifactDir } = {}) {
   if (origin !== DISPOSABLE_ORIGIN) throw new Error("Browser smoke supports only the disposable loopback stack on port 3001.");
@@ -45,14 +45,19 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
   const artifacts = [];
   const browserFailures = [];
   let stage = "setup", substage = "", originalContent = null, addedEventId = null, failure = null, cleanupFailed = false;
-  const onPageError = () => browserFailures.push("JavaScript error");
+  function safeDiagnostic(message) {
+    let detail = String(message).split("\n")[0].replace(/https?:\/\/\S+/g, "[private URL]");
+    for (const secret of [password, ...created.map(record => record.token)].filter(Boolean)) detail = detail.replaceAll(secret, "[private credential]");
+    return detail;
+  }
+  const onPageError = (error) => browserFailures.push(`${stage}: ${safeDiagnostic(error.message)}`);
   const onConsole = (message) => {
     if (message.type() !== "error") return;
     const text = message.text();
-    if (/content security policy|violates.*directive|hydration|uncaught|react.*error/i.test(text)) browserFailures.push("JavaScript or CSP console error");
+    if (/content security policy|violates.*directive|hydration|uncaught|react.*error/i.test(text)) browserFailures.push(`${stage}: ${safeDiagnostic(text)}`);
   };
   const onResponse = (response) => {
-    if (response.status() === 400 || response.status() >= 500) browserFailures.push(`Unexpected HTTP ${response.status()}`);
+    if (response.status() === 400 || response.status() >= 500) browserFailures.push(`${stage}: Unexpected HTTP ${response.status()} for ${safeDiagnostic(new URL(response.url()).pathname)}`);
   };
   page.on("pageerror", onPageError);
   page.on("console", onConsole);
@@ -67,14 +72,28 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
     assert.equal(response.status(), status, "The synthetic test API returned an unexpected status.");
     return response.headers()["content-type"]?.includes("application/json") ? response.json() : response.text();
   }
-  async function content() { return (await api("/api/coordinator/content")).configuration; }
+  async function content() {
+    const { side, ...configuration } = (await api("/api/coordinator/g/content")).configuration;
+    assert.equal(side ?? "groom", "groom");
+    return configuration;
+  }
   async function saveContent(transform) {
     const current = await content();
-    await api("/api/coordinator/content", { method: "PUT", data: transform(current) });
+    await api("/api/coordinator/g/content", { method: "PUT", data: transform(current) });
   }
-  async function goto(path) { return page.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" }); }
+  async function goto(path) {
+    // Let mutation-triggered router refreshes finish before replacing the
+    // document; WebKit reports canceled RSC fetches as uncaught page errors.
+    if (page.context().browser()?.browserType().name() === "webkit") {
+      await page.waitForLoadState("networkidle");
+    }
+    return page.goto(`${origin}${path}`, { waitUntil: "domcontentloaded" });
+  }
   async function screenshot(name) {
     if (!artifactDir) return;
+    // Playwright WebKit screenshots inject an unnonced stylesheet. Preserve
+    // the strict CSP/error assertions and use Chromium for visual artifacts.
+    if (page.context().browser()?.browserType().name() === "webkit") return;
     assert.equal(await page.locator("#database-issued-link").count(), 0, "Do not capture a one-time invitation link.");
     assert.equal(await page.locator(".entry-pass").count(), 0, "Do not capture an entry credential.");
     assert.equal(await page.locator('input[type="password"]').count(), 0, "Do not capture a password field.");
@@ -101,7 +120,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
   }
   function editor() { return page.locator("section").filter({ has: page.getByRole("heading", { level: 2, name: /^(Review and update|Record a reply for) / }) }).last(); }
   async function uiReplySave(expectedStatus = 200) {
-    const pending = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/coordinator/rsvp" && response.request().method() === "POST");
+    const pending = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/coordinator/g/rsvp" && response.request().method() === "POST");
     await editor().getByRole("button", { name: "Save reply", exact: true }).click();
     const response = await pending;
     assert.equal(response.status(), expectedStatus, "The coordinator editor returned an unexpected status.");
@@ -116,7 +135,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
     await editor().getByLabel("Respondent’s name", { exact: true }).waitFor();
   }
   async function issue(household, locale, eventIds) {
-    await goto("/coordinator/invitations");
+    await goto("/coordinator/g/invitations");
     await page.locator("#database-invitation-name-en").fill(household.en);
     await page.locator("#database-invitation-name-hi").fill(household.hi);
     await page.locator('input[name="database-invitation-locale"]').nth(locale === "hi" ? 1 : 0).check();
@@ -127,7 +146,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       await page.locator(`#database-invitation-adults-${eventId}`).fill("2");
       await page.locator(`#database-invitation-children-${eventId}`).fill("1");
     }
-    const pending = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/coordinator/invitations" && response.request().method() === "POST");
+    const pending = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/coordinator/g/invitations" && response.request().method() === "POST");
     await page.getByRole("button", { name: "Create one-time link", exact: true }).click();
     const response = await pending;
     assert.equal(response.status(), 200, "The invitation UI must issue the synthetic household.");
@@ -136,9 +155,9 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
     created.push(record);
     const link = await page.getByLabel("New private invitation link", { exact: true }).inputValue();
     const parsed = new URL(link);
-    assert.ok(parsed.origin === origin && /^\/i\/[A-Za-z0-9_-]{16,128}$/.test(parsed.pathname), "The private link must remain on the disposable origin.");
+    assert.ok(parsed.origin === origin && /^\/i\/g\/[A-Za-z0-9_-]{16,128}$/.test(parsed.pathname), "The private link must remain on the disposable origin.");
     record.path = parsed.pathname;
-    record.token = parsed.pathname.slice(3);
+    record.token = parsed.pathname.split("/").at(-1);
     await page.getByRole("button", { name: "I shared or saved it — hide link", exact: true }).click();
     assert.equal(await page.locator("#database-issued-link").count(), 0, "Dismissed links must disappear.");
     assert.ok(!(await page.locator("body").innerText()).includes(record.token), "Coordinator records must not redisplay the private link.");
@@ -159,21 +178,21 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       await page.getByRole("heading", { name: "This link could not be opened.", exact: true }).waitFor();
     });
     await run("coordinator login and access gate", async () => {
-      await goto("/coordinator/responses");
-      await page.waitForURL(`${origin}/coordinator/login`);
+      await goto("/coordinator/g/responses");
+      await page.waitForURL(`${origin}/coordinator/g/login`);
       await page.getByLabel("Coordinator password", { exact: true }).fill("invalid-browser-password-123456");
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
       await page.getByRole("alert").waitFor();
       await page.getByLabel("Coordinator password", { exact: true }).fill(password);
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
-      await page.waitForURL(`${origin}/coordinator`);
+      await page.waitForURL(`${origin}/coordinator/g`);
       await page.getByRole("heading", { name: "A calmer way to manage every RSVP.", exact: true }).waitFor();
     });
     let eventIds, eventTitles;
     await run("content editor save, discard and test celebrations", async () => {
       originalContent = await content();
       assert.ok(originalContent.events.some((event) => event.id === "test-event"), "The disposable fixture must contain its test event.");
-      await goto("/coordinator/content");
+      await goto("/coordinator/g/content");
       await page.getByRole("heading", { name: "Invitation content", exact: true }).waitFor();
       await page.getByRole("tab", { name: /^Events/ }).click();
       await page.getByRole("heading", { name: "Plan every celebration", exact: true }).waitFor();
@@ -182,7 +201,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       await page.getByRole("tab", { name: /^Wedding details/ }).click();
       const savedName = `Browser Coordination ${suffix}`;
       await page.getByLabel("Fallback name", { exact: true }).fill(savedName);
-      const pending = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/coordinator/content" && response.request().method() === "PUT");
+      const pending = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/coordinator/g/content" && response.request().method() === "PUT");
       await page.getByRole("button", { name: "Save invitation content", exact: true }).click();
       assert.equal((await pending).status(), 200, "The content editor must save a reversible fixture change.");
       assert.equal((await content()).settings.coordinatorName, savedName, "The saved fixture name must reach the API.");
@@ -194,7 +213,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       const first = current.events.find((event) => event.id === "test-event");
       addedEventId = `browser-event-${suffix}`;
       const second = { ...first, id: addedEventId, slug: addedEventId, titleEn: "Browser celebration", titleHi: "ब्राउज़र समारोह", displayOrder: Math.max(...current.events.map((event) => event.displayOrder)) + 1, published: true, defaultSelected: true, defaultAdultLimit: 2, defaultChildLimit: 1 };
-      await api("/api/coordinator/content", { method: "PUT", data: { ...current, events: [...current.events, second] } });
+      await api("/api/coordinator/g/content", { method: "PUT", data: { ...current, events: [...current.events, second] } });
       eventIds = [first.id, second.id];
       eventTitles = [first.titleEn, second.titleEn];
     });
@@ -260,7 +279,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       assert.ok(!calendar.includes(main.token), "Calendar files must omit bearer credentials.");
     });
     await run("coordinator notes, event CSV and recent/search filters", async () => {
-      await goto("/coordinator/responses");
+      await goto("/coordinator/g/responses");
       await showDetails(names.en);
       assert.ok((await rowFor(names.en).innerText()).includes(note), "Coordinator details must show hospitality requests.");
       await page.getByRole("textbox", { name: "Search RSVP records", exact: true }).fill(names.en);
@@ -325,7 +344,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       assert.ok((await rowFor(names.en).innerText()).includes("Concurrent response"), "Reload must show the intervening response.");
     });
     await run("manual gate check-in and repeated pass", async () => {
-      await goto("/coordinator/check-in");
+      await goto("/coordinator/g/check-in");
       await page.getByRole("combobox", { name: /^Celebration for this check-in/ }).selectOption(eventIds[0]);
       await page.getByRole("button", { name: "Enter pass code", exact: true }).click();
       for (const expected of ["Entry recorded", "Already checked in"]) {
@@ -338,7 +357,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
     await run("late phone replies, provisional/declined filters and pass invalidation", async () => {
       await saveContent((current) => ({ ...current, settings: { ...current.settings, canEditUntil: new Date(Date.now() - 60_000).toISOString() } }));
       await api("/api/rsvp", { method: "POST", status: 422, data: { token: main.token, ...attendingInput } });
-      await goto("/coordinator/responses");
+      await goto("/coordinator/g/responses");
       await openReply(secondNames.hi);
       await editor().getByLabel("Respondent’s name", { exact: true }).fill("Browser Hindi Phone Respondent");
       for (const title of eventTitles) {
@@ -366,69 +385,77 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       await page.getByRole("button", { name: /^Declined\s*\d/ }).click();
       await showDetails(names.en);
       assert.ok((await rowFor(names.en).innerText()).includes("शुभकामनाएँ"), "Declined replies must retain wishes for the couple.");
-      await api("/api/coordinator/check-in", { method: "POST", status: 404, data: { passToken: passPayload.slice("shaadi-entry:v1:".length), eventId: eventIds[0] } });
+      await api("/api/coordinator/g/check-in", { method: "POST", status: 404, data: { passToken: passPayload.slice("shaadi-entry:v1:".length), eventId: eventIds[0] } });
       await saveContent((current) => ({ ...current, settings: { ...current.settings, canEditUntil: originalContent.settings.canEditUntil } }));
     });
     await run("workspace mobile and desktop layouts", async () => {
-      const paths = ["/coordinator", "/coordinator/content", "/coordinator/invitations", "/coordinator/responses", "/coordinator/follow-ups", "/coordinator/check-in"];
+      const paths = ["/coordinator/g", "/coordinator/g/content", "/coordinator/g/invitations", "/coordinator/g/responses", "/coordinator/g/follow-ups", "/coordinator/g/check-in"];
       for (const width of [320, 390, 1440]) {
         await page.setViewportSize({ width, height: 1000 });
         for (const path of paths) {
           await goto(path);
           await page.locator("main").waitFor();
           await noOverflow();
-          if (path === "/coordinator" || path === "/coordinator/responses") await screenshot(`coordinator-${path === "/coordinator" ? "overview" : "responses"}-${width}.png`);
+          if (path === "/coordinator/g" || path === "/coordinator/g/responses") await screenshot(`coordinator-${path === "/coordinator/g" ? "overview" : "responses"}-${width}.png`);
         }
       }
     });
     await run("UI revocation, response erasure and expired guest access", async () => {
-      await goto("/coordinator/invitations");
+      await goto("/coordinator/g/invitations");
       for (const record of [main, hindi]) {
+        substage = `revoke ${record.locale} invitation`;
         const row = invitationFor(record.household);
+        const revocation = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/coordinator/g/invitations/revoke" && response.request().method() === "POST");
         page.once("dialog", (dialog) => void dialog.accept());
         await row.getByRole("button", { name: "Delete & revoke link", exact: true }).click();
+        assert.equal((await revocation).status(), 200, "Revoking an invitation through the UI must succeed.");
+        substage = `erase ${record.locale} RSVP`;
         await row.getByRole("button", { name: "Delete RSVP", exact: true }).waitFor();
+        const erasure = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/coordinator/g/invitations/rsvp/delete" && response.request().method() === "POST");
         page.once("dialog", (dialog) => void dialog.accept());
         await row.getByRole("button", { name: "Delete RSVP", exact: true }).click();
+        assert.equal((await erasure).status(), 200, "Erasing a revoked invitation's reply through the UI must succeed.");
         await row.getByText(/^RSVP deleted /).waitFor();
       }
+      substage = "open revoked guest invitation";
       assert.equal((await goto(main.path)).status(), 404, "Revoked invitation links must stop working.");
-      await api("/api/coordinator/rsvp", { method: "POST", status: 404, data: { invitationId: main.id, ...attendingInput, expectedUpdatedAt: currentUpdatedAt } });
+      await api("/api/coordinator/g/rsvp", { method: "POST", status: 404, data: { invitationId: main.id, ...attendingInput, expectedUpdatedAt: currentUpdatedAt } });
     });
     await run("coordinator sign-out and session access gate", async () => {
       substage = "sign out through the workspace";
-      await goto("/coordinator");
+      await goto("/coordinator/g");
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
-      await page.waitForURL(`${origin}/coordinator/login`);
+      await page.waitForURL(`${origin}/coordinator/g/login`);
       substage = "verify the page and API access gates after sign-out";
-      await goto("/coordinator/responses");
-      await page.waitForURL(`${origin}/coordinator/login`);
-      await api("/api/coordinator/content", { status: 401 });
+      await goto("/coordinator/g/responses");
+      await page.waitForURL(`${origin}/coordinator/g/login`);
+      await api("/api/coordinator/g/content", { status: 401 });
       substage = "sign in again for fixture cleanup";
       await page.getByLabel("Coordinator password", { exact: true }).fill(password);
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
-      await page.waitForURL(`${origin}/coordinator`);
+      await page.waitForURL(`${origin}/coordinator/g`);
     });
     await run("browser JavaScript and CSP checks", async () => {
-      assert.equal(browserFailures.length, 0, "The browser must have no unexpected JavaScript, CSP, HTTP 400, or server errors.");
+      assert.equal(browserFailures.length, 0, `Browser rendering or response errors: ${browserFailures.join("; ")}`);
     });
   } catch (cause) {
     // Playwright error strings can include bearer URLs or filled credentials.
     const causeKind = cause?.name === "TimeoutError" ? "Playwright action timed out" : cause?.name === "AssertionError" ? "Assertion failed" : "Browser action failed";
-    failure = new Error(`Wedding browser smoke failed during: ${stage}${substage ? `; ${substage}` : ""}. ${causeKind}. Detailed browser errors were withheld to protect private links.`);
+    const detail = safeDiagnostic(cause?.message ?? causeKind);
+    failure = new Error(`Wedding browser smoke failed during: ${stage}${substage ? `; ${substage}` : ""}. ${causeKind}: ${detail}`);
   } finally {
     stage = "synthetic fixture cleanup";
     if (created.length || originalContent) {
       try {
-        const login = await page.request.post(`${origin}/api/coordinator/login`, { headers: { Origin: origin }, data: { password } });
+        const login = await page.request.post(`${origin}/api/coordinator/g/login`, { headers: { Origin: origin }, data: { password } });
         if (login.status() !== 200) cleanupFailed = true;
       } catch { cleanupFailed = true; }
     }
     for (const record of created) {
       try {
-        const revoke = await page.request.post(`${origin}/api/coordinator/invitations/revoke`, { headers: { Origin: origin }, data: { invitationId: record.id } });
+        const revoke = await page.request.post(`${origin}/api/coordinator/g/invitations/revoke`, { headers: { Origin: origin }, data: { invitationId: record.id } });
         if (![200, 404].includes(revoke.status())) cleanupFailed = true;
-        const erase = await page.request.post(`${origin}/api/coordinator/invitations/rsvp/delete`, { headers: { Origin: origin }, data: { invitationId: record.id } });
+        const erase = await page.request.post(`${origin}/api/coordinator/g/invitations/rsvp/delete`, { headers: { Origin: origin }, data: { invitationId: record.id } });
         if (![200, 404, 409].includes(erase.status())) cleanupFailed = true;
       } catch { cleanupFailed = true; }
     }
@@ -443,7 +470,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
     page.off("console", onConsole);
     page.off("response", onResponse);
   }
-  if (cleanupFailed) throw new Error("Wedding browser smoke fixture cleanup failed. Review only the disposable stack before rerunning.");
+  if (cleanupFailed) throw new Error(`${failure?.message ?? "Wedding browser smoke finished."} Synthetic fixture cleanup failed; review only the disposable stack before rerunning.`);
   if (failure) throw failure;
   return { passed: true, checks, screenshots: artifacts, browserErrors: browserFailures.length, createdHouseholds: created.length, cleanup: "Synthetic invitations revoked, replies erased, settings restored and the added test celebration archived." };
 }

@@ -6,6 +6,7 @@ import { privateEmpty, privateJson } from "@/lib/server/private-response";
 import { takeRateLimit } from "@/lib/server/rate-limit";
 import {
   clientNetworkIdentifier,
+  coordinatorRequestSide,
   COORDINATOR_SESSION_COOKIE,
   coordinatorSessionCookieOptions,
   coordinatorTotpCounter,
@@ -46,12 +47,13 @@ function unavailable(serviceDown = false) {
  * compared server-side, and never placed in a browser-readable credential.
  */
 export async function POST(request: NextRequest) {
+  const side = coordinatorRequestSide(request);
   const availability = await loginAvailability(request);
   if (availability !== "available") return unavailable(availability === "unavailable");
   if (!request.headers.get("origin") || !isSameOriginRequest(request)) {
     return privateJson({ error: "This request was blocked." }, 403);
   }
-  if (!isCoordinatorAuthConfigured()) {
+  if (!isCoordinatorAuthConfigured(side)) {
     return privateJson({ error: "Coordinator sign-in is not configured." }, 503);
   }
 
@@ -77,16 +79,16 @@ export async function POST(request: NextRequest) {
       { "Retry-After": String(limit.retryAfterSeconds) }
     );
   }
-  const passwordMatches = isAuthorizedCoordinatorPassword(parsed.data.password);
-  const totpRequired = isCoordinatorTotpRequired();
-  const counter = totpRequired ? coordinatorTotpCounter(parsed.data.code) : null;
+  const passwordMatches = isAuthorizedCoordinatorPassword(parsed.data.password, side);
+  const totpRequired = isCoordinatorTotpRequired(side);
+  const counter = totpRequired ? coordinatorTotpCounter(parsed.data.code, Date.now(), side) : null;
   if (!passwordMatches || (totpRequired && counter === null)) {
     return privateJson({ error: totpRequired
       ? "The password or authenticator code is incorrect."
       : "The coordinator password is incorrect." }, 401);
   }
   if (counter !== null) {
-    const identifier = coordinatorTotpReplayIdentifier(counter);
+    const identifier = coordinatorTotpReplayIdentifier(counter, side);
     // A valid code may be used for one session only, across all Vercel
     // instances. Two minutes outlast its complete accepted time window.
     const consumed = identifier ? await takeRateLimit(identifier, 1, 120_000) : null;
@@ -95,11 +97,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const session = createCoordinatorSession();
+  const session = createCoordinatorSession(Date.now(), side);
   if (!session) return privateJson({ error: "Coordinator sign-in is not configured." }, 503);
   if (!await registerCoordinatorSession(session)) return unavailable(true);
 
-  const response = privateJson({ ok: true });
+  const response = privateJson({ ok: true, side });
   response.cookies.set({
     name: COORDINATOR_SESSION_COOKIE,
     value: session,

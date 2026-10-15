@@ -5,6 +5,7 @@ import type {
   WeddingArtworkKey,
   WeddingDetails,
   WeddingEvent,
+  WeddingEventPopupDetail,
   WeddingGuestContent,
   WeddingTravelIcon
 } from "./types.js";
@@ -54,6 +55,9 @@ export type DatabaseWeddingEventRow = {
   dress_code_hi: string;
   practical_note_en: string;
   practical_note_hi: string;
+  description_en?: string | null;
+  description_hi?: string | null;
+  popup_details?: unknown;
   category: WeddingEvent["category"];
   published: boolean;
   display_order?: number | string | null;
@@ -68,6 +72,22 @@ const localizedTextSchema = z.object({
   hi: text(600)
 }).strict();
 
+const popupLocalizedText = (maximumLength: number) => z.object({
+  en: text(maximumLength),
+  hi: text(maximumLength)
+}).strict();
+
+export const weddingEventPopupDetailsSchema = z.array(z.object({
+  label: popupLocalizedText(120),
+  value: popupLocalizedText(1_200)
+}).strict()).max(8);
+
+/** Discard malformed optional popup content without hiding the event itself. */
+export function parseWeddingEventPopupDetails(value: unknown): WeddingEventPopupDetail[] | undefined {
+  const parsed = weddingEventPopupDetailsSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
 const artworkKeySchema = z.enum(["ganesha-basohli", "gaja-lakshmi"] satisfies WeddingArtworkKey[]);
 const travelIconSchema = z.enum(["plane", "train", "car", "bed"] satisfies WeddingTravelIcon[]);
 
@@ -75,6 +95,7 @@ const guestContentSchema = z.object({
   hero: z.object({
     invocation: text(240).optional(),
     region: localizedTextSchema.optional(),
+    invitationLead: localizedTextSchema.optional(),
     artworkKey: artworkKeySchema.optional(),
     artworkAlt: localizedTextSchema.optional()
   }).strict().optional(),
@@ -162,6 +183,9 @@ const eventRowSchema = z.object({
   dress_code_hi: text(300),
   practical_note_en: text(600),
   practical_note_hi: text(600),
+  description_en: z.unknown().optional(),
+  description_hi: z.unknown().optional(),
+  popup_details: z.unknown().optional(),
   category: z.enum(["celebration", "ceremony", "reception"]),
   published: z.boolean(),
   display_order: z.union([z.number().int(), z.string().trim().regex(/^-?\d+$/)]).nullable().optional()
@@ -260,6 +284,12 @@ export function mapWeddingEvent(row: unknown): MappedWeddingEvent | null {
     : Number(parsed.data.display_order);
   if (displayOrder !== null && !Number.isSafeInteger(displayOrder)) return null;
 
+  const descriptionResult = popupLocalizedText(2_400).safeParse({
+    en: parsed.data.description_en,
+    hi: parsed.data.description_hi
+  });
+  const popupDetails = parseWeddingEventPopupDetails(parsed.data.popup_details);
+
   return {
     event: {
       id: parsed.data.id,
@@ -275,6 +305,8 @@ export function mapWeddingEvent(row: unknown): MappedWeddingEvent | null {
       entryNote: localized(parsed.data.entry_note_en, parsed.data.entry_note_hi),
       dressCode: localized(parsed.data.dress_code_en, parsed.data.dress_code_hi),
       practicalNote: localized(parsed.data.practical_note_en, parsed.data.practical_note_hi),
+      ...(descriptionResult.success ? { description: descriptionResult.data } : {}),
+      ...(popupDetails?.length ? { popupDetails } : {}),
       category: parsed.data.category
     },
     displayOrder

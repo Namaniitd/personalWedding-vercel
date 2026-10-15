@@ -5,6 +5,7 @@ import { privateEmpty, privateJson } from "@/lib/server/private-response";
 import { takeRateLimit } from "@/lib/server/rate-limit";
 import {
   clientNetworkIdentifier,
+  coordinatorRequestSide,
   isAuthorizedCoordinatorRequest,
   isSameOriginRequest,
   readJsonBody
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
   if (!await coordinatorCanRead(request)) return privateJson({ error: "This request was blocked." }, 403);
 
   try {
-    const result = await forwardBackendJson(await requestBackend("/v1/coordinator/content"));
+    const result = await forwardBackendJson(await requestBackend("/v1/coordinator/content", { side: coordinatorRequestSide(request) }));
     return privateJson(result.payload, result.status, result.headers);
   } catch {
     return privateJson({ error: "Wedding content is temporarily unavailable." }, 503);
@@ -82,6 +83,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const result = await forwardBackendJson(await requestBackend("/v1/coordinator/content", {
+      side: coordinatorRequestSide(request),
       method: "PUT",
       body: body.value
     }));

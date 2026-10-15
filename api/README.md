@@ -43,7 +43,7 @@ All `/v1/*` responses are JSON with `Cache-Control: private, no-store`; there ar
 
 | Method | Path | Request/response |
 | --- | --- | --- |
-| GET | `/v1/status` | `{mode, coordinatorAvailable}` |
+| GET | `/v1/status` | `{mode, coordinatorAvailable, sideIsolation}` |
 | GET | `/v1/readyz` | Authenticated dependency readiness |
 | POST | `/v1/invitations/resolve` | `{token}` → `{ok, resolved}`; 404 for inactive link |
 | POST | `/v1/rsvp` | Current RSVP JSON → `{ok, mode, updatedAt?, entryPass?}` |
@@ -64,12 +64,17 @@ All `/v1/*` responses are JSON with `Cache-Control: private, no-store`; there ar
 `POST /v1/security/coordinator-session` accepts `{action, sessionHash}` for
 `validate` or `revoke`, and additionally `expiresAt` for `register`; it returns
 `{ok}`. Only hashes of signed cookies cross this service boundary. The narrowly
-granted `wedding.coordinator_session(text,text,timestamptz)` function tracks
+granted `wedding.coordinator_session(text,text,timestamptz,text)` function tracks
 eight-hour sessions, expires them, and persists revocation across all instances.
 Registration cannot extend or reactivate a revoked session. The runtime role
 cannot read or mutate `wedding.coordinator_sessions` directly. Apply the schema
 and grants before deploying the API, then deploy the frontend. This upgrade
 requires coordinators to sign in again.
+
+The fourth argument binds the operation to `groom` or `bride`. A session from
+one side cannot validate, revoke, or register the same hash on the other side.
+The former three-argument function remains a compatibility wrapper for groom
+sessions while the API and frontend deploy independently.
 
 `RUN_COORDINATOR_SESSION_DATABASE_TESTS=true` enables
 `src/coordinator-session-postgres.integration.test.ts` only with separate owner
@@ -79,7 +84,16 @@ restricted-role suites; never run these tests against the persistent stack.
 
 The browser continues to use only the Next.js same-origin `/api/*` routes. Those routes enforce browser Origin, signed coordinator session, request size, and rate limits before forwarding to this API. The API independently validates all database mutations.
 
-Coordinator invitation DTOs include each invitation's `eventLimits` array and the saved respondent name, dietary/accessibility note, and message to the couple. Lists return all records for this wedding. Treat coordinator pages and CSV exports as private guest information. Hosted invitation resolution also restores the saved RSVP on reload.
+Coordinator requests are also bound to the frontend session's groom or bride
+workspace. The API applies that side to content, invitation, response, session,
+and check-in queries; a foreign invitation or pass is unavailable. Existing
+records migrate to the groom workspace, while the bride workspace has its own
+content. Apply the side-aware schema and runtime grants first, deploy this API
+and confirm authenticated `/v1/status` reports `sideIsolation: true`, then
+deploy the frontend. Preserve all database credentials and invitation/pass
+peppers; no PostgreSQL restart is needed.
+
+Coordinator invitation DTOs include each invitation's `eventLimits` array and the saved respondent name, dietary/accessibility note, and message to the couple. Lists return records only for the authenticated coordinator side. Treat coordinator pages and CSV exports as private guest information. Hosted invitation resolution also restores the saved RSVP on reload.
 
 The coordinator RSVP action records responses received by phone and corrects a saved response after the online guest cutoff. `expectedUpdatedAt` is the last loaded RSVP timestamp, or `null` only when there is no response yet; a changed response returns 409 without overwriting it. Every invited celebration must be answered within that invitation's limits. Revoked or expired invitations remain unavailable. An eligible active pass remains usable with the latest counts; declining/confirming invalidates it, and returning to attending creates a fresh pass when the guest next opens their invitation. This action returns only a revision timestamp, never invitation or QR credentials.
 
@@ -98,11 +112,17 @@ psql "$DATABASE_SCHEMA_URL" -v ON_ERROR_STOP=1 -v runtime_role="$DATABASE_RUNTIM
 
 Provision the role and its password outside this repository, then put that role's connection URL in the API's `DATABASE_URL`. The grant file rejects admin or schema-owner roles, revokes older direct grants, and checks that the runtime role cannot create persistent database objects in any application schema, delete invitation/pass/content rows, or read the legacy invitation ciphertext column. It grants RSVP deletion only because the coordinator's explicit erase action needs it; a database trigger still requires revocation first. Re-run the grant file after schema changes, and test `/readyz` with the runtime URL before sending invitations. Do not put the schema-owner URL in the API container.
 
-For this coordinator RSVP upgrade, apply `database/schema.sql` and then re-run `database/grant-runtime-role.sql` as the wedding schema owner **before deploying the API**. The new `wedding.save_coordinator_rsvp(uuid,jsonb,timestamptz)` function must remain owned by that schema owner. It is the narrowly granted `SECURITY DEFINER` operation that validates, locks, and audits the correction while bypassing the guest cutoff. Ordinary runtime RSVP INSERT/UPDATE cannot use the bypass by setting the coordinator marker. `wedding.coordinator_rsvp_audit` retains only invitation/revision timestamps and the database login; it does not retain erased names, notes, messages, or attendance snapshots, and runtime callers cannot alter it.
+For the separate bride/groom workspaces, apply `database/schema.sql` and then re-run `database/grant-runtime-role.sql` as the wedding schema owner **before deploying the API**. Existing settings, events, contacts, invitations, and session hashes remain groom data, including invitations that previously selected a bride reply-to contact. Configure the bride workspace separately; the migration copies no private guest data. Each side has its own settings row, contacts and event slugs, while event IDs stay globally unique and invitation/event ownership cannot change. Optional bilingual event descriptions and custom popup fields are added without changing existing content.
+
+The new `wedding.save_coordinator_rsvp(uuid,jsonb,timestamptz,text)` function must remain owned by the schema owner. It validates the requested side, locks and audits the correction, and bypasses only that invitation's guest cutoff. The three-argument compatibility wrapper always uses groom data. Ordinary runtime RSVP INSERT/UPDATE cannot use the bypass by setting the coordinator marker. `wedding.coordinator_rsvp_audit` retains only invitation/revision timestamps and the database login; it does not retain erased names, notes, messages, or attendance snapshots, and runtime callers cannot alter it.
 
 `pnpm test` skips PostgreSQL integration tests by default. For a disposable loopback database loaded with the schema and synthetic `database/test-fixtures.sql`, test the restricted runtime role with `RUN_DATABASE_RUNTIME_TESTS=true`, `DATABASE_URL` set to its runtime login, `API_TEST_DATABASE_OWNER_URL` set to its separate owner login, and both database peppers set to synthetic values, then run `pnpm exec vitest run src/coordinator-postgres.integration.test.ts`. These tests change the cutoff and create/delete synthetic invitations; never run them against the wedding database. The existing `RUN_DATABASE_TESTS=true` suite also requires a disposable loopback database, using its owner URL for teardown.
 
+`RUN_SIDE_SCHEMA_DATABASE_TESTS=true` enables `src/side-schema-postgres.integration.test.ts` only on disposable loopback port 54329 with separate owner/runtime URLs and the synthetic smoke fixtures. Run this suite by itself before browser tests: it temporarily reconstructs the legacy schema inside a rolled-back transaction, checks migration idempotence, and verifies side-specific cutoffs, sessions, coordinator corrections, scanner guards and restricted grants. It leaves the groom fixture and empty bride workspace unchanged.
+
 `database/content.local.sql` is the included original wedding-content seed, not a database export. It is the only local SQL file intentionally included in the source and project ZIP; other `*.local.sql` files remain ignored. Keep `.env.local`, imported household CSVs, database exports, guest data, and raw invitation links out of commits, archives, and images. `pnpm content:apply` applies the seed only to a loopback database; `CONTENT_SQL_FILE` can point to another local file. `pnpm import:households -- /secure/path/households.csv --dry-run` previews an operator-side import. Hosted Supabase migrations live in `supabase/migrations/`.
+
+The local seed configures both team settings, each team's primary reply-to contact, and separate groom/bride event rows for a suggested Haryana wedding schedule. Home rituals use the corresponding family's home town; shared ceremonies retain separate ownership. It preserves the existing groom event IDs and prefixes bride IDs with `bride-`. Times, precise venue addresses, RSVP cutoffs, and phone numbers remain placeholders. Fresh persistent local Compose databases apply this seed after the schema; existing volumes keep their saved data. See the root README for an explicit reapply command, which replaces matching seed content. Automated integration and smoke tests continue to use the synthetic fixtures only.
 
 ## Contract changes
 

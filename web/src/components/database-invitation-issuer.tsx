@@ -1,5 +1,7 @@
 "use client";
 
+import { coordinatorApiPath } from "@/lib/wedding-side";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ContactRole, DatabaseCoordinatorInvitation, DatabaseInvitationIssuerOptions, LocalizedText } from "@/lib/types";
@@ -285,7 +287,7 @@ export function DatabaseInvitationIssuer({
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/coordinator/invitations", {
+      const response = await fetch(coordinatorApiPath("invitations"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ householdNameEn, householdNameHi, preferredLocale, contactRole, eventLimits })
@@ -339,7 +341,7 @@ export function DatabaseInvitationIssuer({
     setActionNotice("");
     setRevokingId(invitation.id);
     try {
-      const response = await fetch("/api/coordinator/invitations/revoke", {
+      const response = await fetch(coordinatorApiPath("invitations/revoke"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ invitationId: invitation.id })
@@ -381,7 +383,7 @@ export function DatabaseInvitationIssuer({
     setActionNotice("");
     setDeletingRsvpId(invitation.id);
     try {
-      const response = await fetch("/api/coordinator/invitations/rsvp/delete", {
+      const response = await fetch(coordinatorApiPath("invitations/rsvp/delete"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ invitationId: invitation.id })

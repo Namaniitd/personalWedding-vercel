@@ -6,36 +6,38 @@ import { CoordinatorContentSetup } from "@/components/coordinator-content-setup"
 import { activeInvitationRows, downloadCsv, summariseEventAttendance, summariseRows } from "@/lib/coordinator-rows";
 import type {
   DatabaseCoordinatorInvitation as CoordinatorInvitation,
-  DatabaseInvitationIssuerOptions
+  DatabaseInvitationIssuerOptions,
+  WeddingSide
 } from "@/lib/types";
+import { coordinatorPath } from "@/lib/wedding-side";
 
 const workspaceLinks = [
   {
-    href: "/coordinator/content",
+    path: "content",
     eyebrow: "Wedding details",
     title: "Invitation content",
     copy: "Update names, timing, contacts, event details, and what guests see on their invitation."
   },
   {
-    href: "/coordinator/check-in",
+    path: "check-in",
     eyebrow: "On the day",
     title: "Gate check-in",
     copy: "Scan welcome passes at the door, or accept a manual code when a camera is unavailable."
   },
   {
-    href: "/coordinator/invitations",
+    path: "invitations",
     eyebrow: "Before the day",
     title: "Invite links",
     copy: "Create a unique private link per household, then copy, share, or revoke it."
   },
   {
-    href: "/coordinator/responses",
+    path: "responses",
     eyebrow: "Replies",
     title: "Household RSVPs",
     copy: "Filter, search, and sort household replies, then export a clean handover list."
   },
   {
-    href: "/coordinator/follow-ups",
+    path: "follow-ups",
     eyebrow: "Next steps",
     title: "Follow-ups",
     copy: "See who still owes a reply and keep a wedding-day backup export ready."
@@ -43,9 +45,11 @@ const workspaceLinks = [
 ];
 
 export function CoordinatorOverview({
+  side,
   invitations,
   issuerOptions
 }: {
+  side: WeddingSide;
   invitations: CoordinatorInvitation[];
   issuerOptions: DatabaseInvitationIssuerOptions;
 }) {
@@ -72,7 +76,7 @@ export function CoordinatorOverview({
           </div>
         </div>
         <div className="admin-intro-actions">
-          <Link href="/coordinator/follow-ups" className="admin-priority-card">
+          <Link href={coordinatorPath(side, "follow-ups")} prefetch={false} className="admin-priority-card">
             <span>Needs attention</span>
             <strong>{followUpSummary}</strong>
             <small>Review follow-ups <b aria-hidden="true">→</b></small>
@@ -90,7 +94,7 @@ export function CoordinatorOverview({
         <article><span>Planned attendance</span><strong>{totals.attendees}</strong><small>Guest counts across all events</small></article>
       </section>
 
-      {issuerOptions.events.length === 0 ? <CoordinatorContentSetup /> : <section className="admin-event-totals" aria-labelledby="event-totals-title">
+      {issuerOptions.events.length === 0 ? <CoordinatorContentSetup side={side} /> : <section className="admin-event-totals" aria-labelledby="event-totals-title">
         <div className="admin-event-totals-heading">
           <div>
             <p>Catering snapshot</p>
@@ -121,7 +125,7 @@ export function CoordinatorOverview({
         </div>
         <div className="admin-section-cards">
           {workspaceLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="admin-section-card">
+            <Link key={link.path} href={coordinatorPath(side, link.path)} prefetch={false} className="admin-section-card">
               <span>{link.eyebrow}</span>
               <strong>{link.title}</strong>
               <small>{link.copy}</small>

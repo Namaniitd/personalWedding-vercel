@@ -75,7 +75,7 @@ describe("coordinator sign in boundary", () => {
     expect(response.headers.get("set-cookie")?.toLowerCase()).toContain("samesite=strict");
     expect(response.headers.get("set-cookie")).not.toContain(password);
     expect(await isAuthorizedCoordinatorSession(sessionFrom(response))).toBe(true);
-    await expect(response.json()).resolves.toEqual({ ok: true });
+    await expect(response.json()).resolves.toEqual({ ok: true, side: "groom" });
   });
 
   it("rejects wrong passwords, cross-origin writes, and malformed JSON", async () => {

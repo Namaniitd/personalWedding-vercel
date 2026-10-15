@@ -15,3 +15,6 @@ playwright-report
 test-results
 *.log
 *.tsbuildinfo
+**/.DS_Store
+private-media/teaser/comingSoon*.mp4
+private-media/teaser/*-source.*

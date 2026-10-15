@@ -1,5 +1,7 @@
 "use client";
 
+import { coordinatorApiPath } from "@/lib/wedding-side";
+
 import { useEffect, useId, useRef, useState } from "react";
 
 import { coordinatorRsvpDraft, coordinatorRsvpValidation, type CoordinatorRsvpInput } from "@/lib/coordinator-rsvp";
@@ -65,7 +67,7 @@ export function CoordinatorRSVPEditor({ invitation, events, onSaved, onCancel, o
     setError("");
     setConflict(false);
     try {
-      const response = await fetch("/api/coordinator/rsvp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+      const response = await fetch(coordinatorApiPath("rsvp"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
         setConflict(response.status === 409);

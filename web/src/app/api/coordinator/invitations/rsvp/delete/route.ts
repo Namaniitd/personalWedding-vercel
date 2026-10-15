@@ -5,6 +5,7 @@ import { privateEmpty, privateJson } from "@/lib/server/private-response";
 import { takeRateLimit } from "@/lib/server/rate-limit";
 import {
   clientNetworkIdentifier,
+  coordinatorRequestSide,
   isAuthorizedCoordinatorRequest,
   isSameOriginRequest,
   readJsonBody
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await forwardBackendJson(await requestBackend("/v1/coordinator/invitations/rsvp/delete", {
+      side: coordinatorRequestSide(request),
       method: "POST",
       body: body.value
     }));

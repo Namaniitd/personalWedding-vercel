@@ -5,7 +5,7 @@ import { coordinatorRsvpSchema } from "@/lib/coordinator-rsvp";
 import { backendCoordinatorAvailability, forwardBackendJson, requestBackend } from "@/lib/server/backend-client";
 import { privateEmpty, privateJson } from "@/lib/server/private-response";
 import { takeRateLimit } from "@/lib/server/rate-limit";
-import { clientNetworkIdentifier, isAuthorizedCoordinatorRequest, isSameOriginRequest, readJsonBody, RSVP_BODY_LIMIT_BYTES } from "@/lib/server/request-security";
+import { clientNetworkIdentifier, coordinatorRequestSide, isAuthorizedCoordinatorRequest, isSameOriginRequest, readJsonBody, RSVP_BODY_LIMIT_BYTES } from "@/lib/server/request-security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const parsed = coordinatorRsvpSchema.safeParse(body.value);
   if (!parsed.success) return privateJson({ error: "Please review the RSVP details and try again." }, 400);
   try {
-    const upstream = await requestBackend("/v1/coordinator/rsvp", { method: "POST", body: parsed.data });
+    const upstream = await requestBackend("/v1/coordinator/rsvp", { method: "POST", body: parsed.data, side: coordinatorRequestSide(request) });
     const result = await forwardBackendJson(upstream);
     if (!upstream.ok) return privateJson(result.payload, result.status, result.headers);
     const saved = savedResponseSchema.safeParse(result.payload);

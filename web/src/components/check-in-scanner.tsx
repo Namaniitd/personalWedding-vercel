@@ -1,5 +1,7 @@
 "use client";
 
+import { coordinatorApiPath } from "@/lib/wedding-side";
+
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { parseEntryPassPayload } from "@/lib/entry-pass";
@@ -162,7 +164,7 @@ export function CheckInScanner({ events }: { events: DatabaseInvitationEventOpti
     if (source === "camera") setCameraState("starting");
 
     try {
-      const response = await fetch("/api/coordinator/check-in", {
+      const response = await fetch(coordinatorApiPath("check-in"), {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
