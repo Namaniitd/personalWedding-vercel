@@ -4,6 +4,7 @@
 !.env.example
 local-postgres.env
 *.local.sql
+.DS_Store
 
 # Build and test output
 **/node_modules/

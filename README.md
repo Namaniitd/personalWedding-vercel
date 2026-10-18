@@ -17,7 +17,7 @@ This copy contains source, static assets, and the original wedding-content seed 
 
 ## Verify changes
 
-Use Node.js 22 and pnpm 11.13.0:
+Use Node.js 22 and pnpm 11.28.6:
 
 ```sh
 pnpm --dir api install --frozen-lockfile

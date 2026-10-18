@@ -2,8 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "regions": ["sin1"],
-  "installCommand": "npx --yes pnpm@11.13.0 install --frozen-lockfile",
-  "buildCommand": "npx --yes pnpm@11.13.0 build",
+  "installCommand": "npx --yes pnpm@11.28.6 install --frozen-lockfile",
+  "buildCommand": "npx --yes pnpm@11.28.6 build",
   "functions": {
     "src/app/**/route.ts": {
       "maxDuration": 60

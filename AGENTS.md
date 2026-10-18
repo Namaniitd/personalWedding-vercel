@@ -16,7 +16,7 @@ Next.js-specific instructions for frontend work. Use the checked-in READMEs and
   `grant-runtime-role.sql` defines restricted runtime permissions.
 - `scripts/`: credential generation, local build helpers, and smoke checks.
 - Each package has its own manifest and lockfile; there is no root package.
-  Use Node 22 and pnpm 11.13.0 and run commands in the appropriate package.
+  Use Node 22 and pnpm 11.28.6 and run commands in the appropriate package.
 - API TypeScript uses ESM. Keep `.js` extensions on relative runtime imports.
   The frontend uses its existing `@/` alias and Next.js conventions.
 - Pure DTO/domain code is intentionally copied in `api/src/domain/` and
