@@ -27,7 +27,7 @@
   color: #582032;
   font-family: var(--editorial);
   font-size: clamp(43px, 4.5vw, 61px);
-  font-weight: 550;
+  font-weight: 600;
   letter-spacing: -.04em;
   line-height: 1.05;
 }

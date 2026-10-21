@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { EntryPass } from "@/components/entry-pass";
 import { parseEntryPassPayload } from "@/lib/entry-pass";
-import { defaultAttendances, validateRSVPForInvitation } from "@/lib/rsvp";
+import { contactNumberSchema, defaultAttendances, validateRSVPForInvitation } from "@/lib/rsvp";
 import type { AttendanceInput, EntryPass as EntryPassRecord, Invitation, Locale, RSVPInput, RSVPRecord, RSVPStatus, WeddingEvent } from "@/lib/types";
 
 type FormCopy = {
@@ -198,6 +198,7 @@ function createInitialState(invitation: Invitation, existingResponse?: RSVPRecor
     const attendanceByEvent = new Map(existingResponse.attendances.map((attendance) => [attendance.eventId, attendance]));
     return {
       respondentName: existingResponse.respondentName,
+      contactNumber: existingResponse.contactNumber ?? "",
       status: existingResponse.status,
       attendances: defaultAttendances(invitation).map((attendance) => attendanceByEvent.get(attendance.eventId) ?? attendance),
       comfortNote: existingResponse.status === "attending" ? existingResponse.comfortNote ?? "" : "",
@@ -207,6 +208,7 @@ function createInitialState(invitation: Invitation, existingResponse?: RSVPRecor
 
   return {
     respondentName: "",
+    contactNumber: invitation.contactNumber ?? "",
     status: "attending",
     attendances: defaultAttendances(invitation),
     comfortNote: "",
@@ -249,6 +251,10 @@ function Stepper({
 
 export function RSVPForm({ invitation, events, coupleName, locale, initialResponse = null, initialEntryPass = null }: RSVPFormProps) {
   const copy = formCopy[locale];
+  const isPublic = invitation.kind === "public";
+  const [personalToken, setPersonalToken] = useState<string | null>(null);
+  const [personalUrl, setPersonalUrl] = useState("");
+  const [linkNotice, setLinkNotice] = useState("");
   const [form, setForm] = useState<Omit<RSVPInput, "token">>(() => createInitialState(invitation, initialResponse));
   // A new household must choose a plan deliberately. Keeping the underlying
   // payload shape unchanged lets the existing API validate the same contract.
@@ -267,6 +273,7 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
   const [showValidation, setShowValidation] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const contactInputRef = useRef<HTMLInputElement>(null);
   const planFieldsetRef = useRef<HTMLFieldSetElement>(null);
   const eventListRef = useRef<HTMLDivElement>(null);
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -364,6 +371,12 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
       return;
     }
 
+    if (!contactNumberSchema.safeParse(form.contactNumber ?? "").success || (isPublic && !form.contactNumber?.trim())) {
+      setError({ kind: "custom", message: locale === "hi" ? "कृपया 7 से 15 अंकों का संपर्क नंबर लिखें।" : "Please enter a contact number with 7 to 15 digits." });
+      contactInputRef.current?.focus();
+      return;
+    }
+
     if (form.status === "attending" && form.attendances.some((attendance) => !answeredEvents.has(attendance.eventId))) {
       setError({ kind: "unanswered" });
       const unansweredEvent = eventListRef.current?.querySelector<HTMLElement>(".event-response.is-unanswered");
@@ -380,8 +393,9 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
 
     const payload: RSVPInput = {
       ...form,
-      token: invitation.token,
+      token: personalToken ?? invitation.token,
       respondentName: form.respondentName.trim(),
+      contactNumber: form.contactNumber?.trim() ?? "",
       comfortNote: form.status === "attending" ? form.comfortNote?.trim() || undefined : undefined,
       declineMessage: form.status === "declined" ? form.declineMessage?.trim() || undefined : undefined
     };
@@ -393,10 +407,15 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
 
     setIsSaving(true);
     try {
-      const response = await fetch("/api/rsvp", {
+      const registering = isPublic && !personalToken;
+      const response = await fetch(registering ? "/api/public/rsvp" : "/api/rsvp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(registering ? {
+          side: invitation.side ?? "groom", respondentName: payload.respondentName,
+          contactNumber: payload.contactNumber, status: payload.status, attendances: payload.attendances,
+          comfortNote: payload.comfortNote, declineMessage: payload.declineMessage
+        } : payload)
       });
       if (!response.ok) {
         const responseBody: unknown = await response.json().catch(() => null);
@@ -404,6 +423,14 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
       }
 
       const responseBody: unknown = await response.json().catch(() => null);
+      if (registering) {
+        if (!responseBody || typeof responseBody !== "object" || !("token" in responseBody) || typeof responseBody.token !== "string" || !("invitationUrl" in responseBody) || typeof responseBody.invitationUrl !== "string") {
+          throw new Error(copy.errorGeneric);
+        }
+        setPersonalToken(responseBody.token);
+        setPersonalUrl(responseBody.invitationUrl);
+        payload.token = responseBody.token;
+      }
       const updatedAt = typeof responseBody === "object" && responseBody !== null && "updatedAt" in responseBody && typeof responseBody.updatedAt === "string"
         ? responseBody.updatedAt
         : new Date().toISOString();
@@ -444,11 +471,21 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
           <EntryPass
             pass={entryPass}
             coupleName={coupleName}
-            householdName={invitation.householdName[locale]}
+            householdName={isPublic ? submitted.respondentName : invitation.householdName[locale]}
             eventNames={attendedEventNames}
             locale={locale}
           />
         )}
+        {personalUrl && <div className="response-summary personal-invitation-link">
+          <strong>{locale === "hi" ? "अपना निजी RSVP लिंक सुरक्षित रखें" : "Save your personal RSVP link"}</strong>
+          <p>{locale === "hi" ? "अपना उत्तर देखने या बदलने के लिए इस लिंक का उपयोग करें। इसे केवल अपने परिवार में साझा करें।" : "Use this link to return to your response and make changes. Share it only with your household."}</p>
+          <label className="field-label"><span className="sr-only">{locale === "hi" ? "निजी RSVP लिंक" : "Personal RSVP link"}</span><input readOnly value={personalUrl} onFocus={(event) => event.target.select()} /></label>
+          <div className="success-actions"><button type="button" className="button button-secondary" onClick={async () => {
+            try { await navigator.clipboard.writeText(personalUrl); setLinkNotice(locale === "hi" ? "लिंक कॉपी हो गया।" : "Link copied."); }
+            catch { setLinkNotice(locale === "hi" ? "ऊपर दिए लिंक को चुनकर कॉपी करें।" : "Select and copy the link above."); }
+          }}>{locale === "hi" ? "लिंक कॉपी करें" : "Copy link"}</button><a className="text-link" href={personalUrl}>{locale === "hi" ? "निजी निमंत्रण खोलें" : "Open personal invitation"}</a></div>
+          {linkNotice && <p role="status">{linkNotice}</p>}
+        </div>}
         {attendedEvents.length > 0 && (
           <div className="response-summary">
             <span>{copy.selectedEvents}</span>
@@ -489,7 +526,7 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
       <div className="rsvp-heading">
         <p className="section-kicker">{copy.eyebrow}</p>
         <h2>{copy.title}</h2>
-        <p>{copy.intro}</p>
+        <p>{isPublic ? locale === "hi" ? "अपने परिवार की ओर से जवाब दें। जवाब देने के बाद आपको अपना निजी RSVP लिंक मिलेगा।" : "Reply for your household. After submitting, you’ll receive a personal link to view or update your RSVP." : copy.intro}</p>
       </div>
 
       <label className="field-label">
@@ -509,6 +546,12 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
         />
         <small id="rsvp-name-help">{copy.respondentHelp}</small>
         {showValidation && form.respondentName.trim().length < 2 && <small className="field-error" id="rsvp-name-error">{copy.errorName}</small>}
+      </label>
+
+      <label className="field-label">
+        <span>{locale === "hi" ? "संपर्क नंबर" : "Contact number"}{!isPublic && (locale === "hi" ? " (वैकल्पिक)" : " (optional)")}</span>
+        <input ref={contactInputRef} type="tel" autoComplete="tel" inputMode="tel" maxLength={40} value={form.contactNumber ?? ""} required={isPublic} onChange={(event) => { setError(null); setForm((current) => ({ ...current, contactNumber: event.target.value })); }} placeholder={locale === "hi" ? "देश कोड सहित नंबर" : "Number with country code"} aria-describedby="rsvp-contact-help" />
+        <small id="rsvp-contact-help">{locale === "hi" ? "जरूरत पड़ने पर RSVP के बारे में संपर्क करने के लिए।" : "So the coordination team can contact you about your RSVP."}</small>
       </label>
 
       <fieldset className={`plan-fieldset ${showValidation && !selectedStatus ? "has-validation-error" : ""}`} ref={planFieldsetRef} aria-describedby={showValidation && !selectedStatus ? "rsvp-plan-error" : undefined}>

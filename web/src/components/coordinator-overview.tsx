@@ -28,7 +28,7 @@ const workspaceLinks = [
     path: "invitations",
     eyebrow: "Before the day",
     title: "Invite links",
-    copy: "Create a unique private link per household, then copy, share, or revoke it."
+    copy: "Share a public RSVP link, create private links, or import contacts from CSV."
   },
   {
     path: "responses",

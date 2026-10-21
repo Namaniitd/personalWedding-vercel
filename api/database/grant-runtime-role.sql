@@ -80,20 +80,20 @@ grant select, insert, update on wedding.settings, wedding.contacts, wedding.even
 -- never selected or written by this API and receives no runtime privilege.
 grant select (
   id, side, lock_marker, token_hash, household_name_en, household_name_hi,
-  preferred_locale, contact_role, event_limits, status, access_expires_at,
+  preferred_locale, contact_role, contact_number, event_limits, status, access_expires_at,
   revoked_at, rsvp_deleted_at, created_at
 ) on wedding.invitations to :"runtime_role";
 grant insert (
   id, side, token_hash, household_name_en, household_name_hi, preferred_locale,
-  contact_role, event_limits, access_expires_at
+  contact_role, contact_number, event_limits, access_expires_at
 ) on wedding.invitations to :"runtime_role";
 grant update (lock_marker, status, revoked_at, rsvp_deleted_at)
   on wedding.invitations to :"runtime_role";
 
 grant select on wedding.rsvps to :"runtime_role";
-grant insert (token_hash, respondent_name, status, attendances, comfort_note, decline_message)
+grant insert (token_hash, respondent_name, contact_number, status, attendances, comfort_note, decline_message)
   on wedding.rsvps to :"runtime_role";
-grant update (respondent_name, status, attendances, comfort_note, decline_message, updated_at)
+grant update (respondent_name, contact_number, status, attendances, comfort_note, decline_message, updated_at)
   on wedding.rsvps to :"runtime_role";
 grant delete on wedding.rsvps to :"runtime_role";
 -- Execute only the explicit audited coordinator operation. Its definer owns

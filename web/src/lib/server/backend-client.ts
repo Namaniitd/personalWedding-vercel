@@ -32,10 +32,13 @@ type BackendPath =
   | "/v1/security/coordinator-session"
   | "/v1/invitations/resolve"
   | "/v1/rsvp"
+  | "/v1/public/invitations/resolve"
+  | "/v1/public/rsvp"
   | "/v1/coordinator/workspace"
   | "/v1/coordinator/rsvp"
   | "/v1/coordinator/content"
   | "/v1/coordinator/invitations"
+  | "/v1/coordinator/invitations/bulk"
   | "/v1/coordinator/invitations/revoke"
   | "/v1/coordinator/invitations/rsvp/delete"
   | "/v1/coordinator/check-in";
@@ -161,6 +164,18 @@ export async function resolveBackendInvitation(token: string, side?: WeddingSide
   }
   if (side && ((invitation as Record<string, unknown>).side ?? "groom") !== side) return null;
   return resolved as ResolvedInvitation;
+}
+
+/** Public templates contain wedding details and limits, never guest responses. */
+export async function resolvePublicInvitation(side: WeddingSide): Promise<ResolvedInvitation | null> {
+  const response = await requestBackend("/v1/public/invitations/resolve", { method: "POST", body: { side } });
+  if (response.status === 404) return null;
+  const payload = await readSuccessfulJson(response);
+  const resolved = payload.resolved as ResolvedInvitation | undefined;
+  if (!resolved || resolved.invitation?.kind !== "public" || resolved.invitation.side !== side
+    || resolved.invitation.token !== `public-invitation-${side}` || !Array.isArray(resolved.events)
+    || !resolved.wedding || resolved.rsvp || resolved.entryPass) throw new BackendUnavailableError();
+  return resolved;
 }
 
 export async function getBackendCoordinatorWorkspace(side: WeddingSide = "groom"): Promise<CoordinatorWorkspace> {

@@ -90,7 +90,9 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   // Media handlers perform their own invitation lookup and separate rate limit.
   const isInvitationPage = pathname.startsWith("/i/") && !/^\/i\/(?:[gb]\/)?[^/]+\/media(?:\/|$)/.test(pathname);
-  const needsBackendStatus = isCoordinatorPath(pathname) || isInvitationPage;
+  const isPublicInvitationPage = /^\/rsvp\/[gb]\/?$/.test(pathname);
+  const isGuestPage = isInvitationPage || isPublicInvitationPage;
+  const needsBackendStatus = isCoordinatorPath(pathname) || isGuestPage;
   const backendStatus = needsBackendStatus ? await getBackendStatus().catch(() => null) : null;
 
   const routeSide = coordinatorSideFromPath(pathname);
@@ -116,7 +118,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (isInvitationPage && (!backendStatus || backendStatus.mode === "disabled")) {
+  if (isGuestPage && (!backendStatus || backendStatus.mode === "disabled" || (isPublicInvitationPage && backendStatus.mode !== "database"))) {
     return new NextResponse("The invitation service is temporarily unavailable.", {
       status: 503,
       headers: {
@@ -131,7 +133,7 @@ export async function proxy(request: NextRequest) {
     });
   }
 
-  if (isInvitationPage) {
+  if (isGuestPage) {
     const limit = await takeRateLimit(`invitation-page:network:${clientNetworkIdentifier(request)}`, 120);
     if (!limit.allowed) {
       return new NextResponse("Please wait a minute before trying again.", {
@@ -161,6 +163,11 @@ export async function proxy(request: NextRequest) {
     ? NextResponse.rewrite(new URL(`/coordinator${scopedPage[1] ?? ""}${request.nextUrl.search}`, request.url), { request: { headers: requestHeaders } })
     : NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  if (isPublicInvitationPage) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  }
   return response;
 }
 
@@ -169,6 +176,7 @@ export const config = {
     // Private bearer-link routes must never opt out of CSP, availability, or
     // rate-limit handling based on a client-controlled prefetch header.
     "/i/:path*",
+    "/rsvp/:path*",
     // These explicit matchers cannot be bypassed with the prefetch headers
     // deliberately excluded from the general page matcher below.
     "/coordinator/:path*",

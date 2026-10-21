@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { createCalendarEvent } from "@/lib/calendar";
 import { invitationTokenSchema } from "@/lib/rsvp";
-import { resolveBackendInvitation } from "@/lib/server/backend-client";
+import { resolveBackendInvitation, resolvePublicInvitation } from "@/lib/server/backend-client";
 import { privateEmpty, privateText } from "@/lib/server/private-response";
 import { takeRateLimit } from "@/lib/server/rate-limit";
 import { bearerTokenRateLimitDigest, CALENDAR_BODY_LIMIT_BYTES, clientNetworkIdentifier, isSameOriginRequest, readJsonBody } from "@/lib/server/request-security";
@@ -11,7 +11,10 @@ import { bearerTokenRateLimitDigest, CALENDAR_BODY_LIMIT_BYTES, clientNetworkIde
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const calendarRequestSchema = z.object({ token: invitationTokenSchema }).strict();
+const calendarRequestSchema = z.union([
+  z.object({ token: invitationTokenSchema }).strict(),
+  z.object({ publicSide: z.enum(["groom", "bride"]) }).strict()
+]);
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
@@ -39,7 +42,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const parsed = calendarRequestSchema.safeParse(body.value);
   if (!parsed.success) return privateText("Invitation required.", 400);
 
-  const invitationLimit = await takeRateLimit(`calendar:invitation:${bearerTokenRateLimitDigest(parsed.data.token)}`, 20);
+  const invitationLimit = await takeRateLimit("token" in parsed.data
+    ? `calendar:invitation:${bearerTokenRateLimitDigest(parsed.data.token)}`
+    : `calendar:public:${clientNetworkIdentifier(request)}:${parsed.data.publicSide}`, 20);
   if (!invitationLimit.allowed) {
     return privateText("Please wait a minute before trying again.", 429, {
       "Retry-After": String(invitationLimit.retryAfterSeconds)
@@ -48,7 +53,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   let resolved;
   try {
-    resolved = await resolveBackendInvitation(parsed.data.token);
+    resolved = "token" in parsed.data ? await resolveBackendInvitation(parsed.data.token) : await resolvePublicInvitation(parsed.data.publicSide);
   } catch {
     return privateText("The invitation service is temporarily unavailable.", 503);
   }

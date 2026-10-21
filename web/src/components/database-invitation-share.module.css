@@ -34,6 +34,105 @@
   background: #f8edda;
 }
 
+.contactField.contactField,
+.bulkUpload label,
+.bulkLinks label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.contactField input,
+.bulkLinks input {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #d8c5b8;
+  border-radius: 6px;
+  color: #462a27;
+  background: #fffdf8;
+  font: inherit;
+}
+
+.contactField span,
+.contactField small,
+.bulkUpload small,
+.bulkLinks small {
+  color: #79665a;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.bulkUpload {
+  display: grid;
+  gap: 12px;
+  padding-top: 24px;
+  border-top: 1px solid #e3d3c4;
+}
+
+.bulkUpload h3,
+.bulkUpload p {
+  margin: 0;
+}
+
+.bulkUpload p {
+  line-height: 1.7;
+}
+
+.bulkUpload input[type="file"] {
+  max-width: 100%;
+  padding-block: 8px;
+}
+
+.bulkUpload button {
+  justify-self: start;
+}
+
+.bulkLinks {
+  display: grid;
+  gap: 14px;
+  max-height: 450px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 16px 0;
+  padding: 0;
+}
+
+.bulkLinks li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.bulkLinks button {
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid #7d5147;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.publicPanel > div:first-child {
+  grid-template-columns: 1fr;
+}
+
+.publicPanel > p,
+.publicPanel > div:last-child {
+  margin: 18px 25px;
+  color: #69776d;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.publicPanel a {
+  color: #803c35;
+  overflow-wrap: anywhere;
+}
+
 .actions button:focus-visible {
   outline: 3px solid #c46e52;
   outline-offset: 2px;

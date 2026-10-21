@@ -1,6 +1,6 @@
 # Frontend and browser API
 
-This package is the public Next.js 16 service for Shaadi Companion. It renders private guest invitations and coordinator pages, and its same-origin `/api/*` routes validate browser requests before calling the separate private API. Database credentials, Supabase service keys, and invitation peppers belong only in `api/`.
+This package is the public Next.js 16 service for Shaadi Companion. It renders private invitations, public RSVP pages, and coordinator pages, and its same-origin `/api/*` routes validate browser requests before calling the separate private API. Database credentials, Supabase service keys, and invitation peppers belong only in `api/`.
 
 Start with the [Vercel and Neon deployment guide](../docs/vercel-neon-deployment.md). Deploy this directory as a Next.js Vercel project, separately from the API. The [repository guide](../README.md) also covers the local Podman stack.
 
@@ -29,8 +29,9 @@ session schema and runtime grants, deploy the API, then deploy this frontend;
 existing stateless cookies require a fresh sign-in after this upgrade.
 
 Invitation images live in [`private-media/`](private-media/README.md), outside
-the public asset directory. They load through token-bound private media routes only
-while that invitation is active and unexpired. Those responses are not cached,
+the public asset directory. Private invitations load them through token-bound routes
+while that invitation is active and unexpired; public RSVP pages use separate
+routes that check the team's public invitation configuration. Those responses are not cached,
 and the Next.js image optimizer cannot fetch them. The generic share preview
 and attribution documents remain public. The hero uses responsive WebP variants
 for its three looping portraits, pauses while the tab is hidden, and starts
@@ -38,6 +39,8 @@ paused for reduced motion. Event names open accessible dialogs containing
 that event's optional description, custom plain-text fields, and visit details.
 
 The frontend owns coordinator sign-in, signed HTTP-only sessions, same-origin checks, rate limits, CSP, private response headers, and the one-time link presentation. A newly issued invitation can be privately shared or copied with bilingual message text. The raw link cannot be recovered after dismissal. The private API owns invitation and RSVP data, content, and check-in decisions; see [`api/README.md`](../api/README.md).
+
+**Invitations** also offers reusable `/rsvp/g` and `/rsvp/b` public links and a CSV upload for up to 200 private invitations. Public pages use each team's published, default-selected events and guest limits. The public RSVP requires a contact number and returns a personal private link for subsequent edits. CSV imports accept `name,contactnumber`, use the existing form's event selections, and show all new links once for copying or downloading. Contact numbers are optional on manually created private invitations and private RSVP forms, and appear in coordinator responses and exports. See [the usage and migration instructions](../README.md#public-rsvps-and-bulk-private-invitations).
 
 On **Responses**, coordinators can read respondent names, hospitality requests, and messages for the couple, or record and correct a phone/WhatsApp reply without retrieving the guest’s private link. These updates remain available after online RSVPs close for active, unexpired invitations. Saving detects an intervening guest or coordinator edit and asks you to reload before overwriting it. CSV exports contain one row for each invited household and celebration, with separate attendance counts, requests, messages, and the current coordination contact. Keep these exports private.
 

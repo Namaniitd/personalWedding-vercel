@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { contactNumberSchema } from "@/lib/rsvp";
 
 import type { DatabaseCoordinatorInvitation } from "@/lib/types";
 
@@ -6,6 +7,7 @@ import type { DatabaseCoordinatorInvitation } from "@/lib/types";
 export const coordinatorRsvpSchema = z.object({
   invitationId: z.string().uuid(),
   respondentName: z.string().trim().min(2).max(100),
+  contactNumber: contactNumberSchema.optional(),
   status: z.enum(["attending", "declined", "confirming"]),
   attendances: z.array(z.object({
     eventId: z.string().min(1).max(100),
@@ -30,6 +32,7 @@ export function coordinatorRsvpDraft(invitation: DatabaseCoordinatorInvitation):
   return {
     invitationId: invitation.id,
     respondentName: existing?.respondentName ?? "",
+    contactNumber: existing ? existing.contactNumber ?? "" : invitation.contactNumber ?? "",
     status: existing?.status ?? "attending",
     attendances: invitation.eventLimits.map((limit) => existing?.attendances.find((attendance) => attendance.eventId === limit.eventId) ?? {
       eventId: limit.eventId, attending: false, adults: 0, children: 0

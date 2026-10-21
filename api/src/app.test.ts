@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   validateIssue: vi.fn(),
   validateContact: vi.fn(),
   issueInvitation: vi.fn(),
+  resolvePublicInvitation: vi.fn(),
+  submitPublicRsvp: vi.fn(),
+  issueBulkInvitations: vi.fn(),
   manageSession: vi.fn()
 }));
 
@@ -41,6 +44,15 @@ vi.mock("./lib/database-invitations", async (importOriginal) => ({
 vi.mock("./lib/database-wedding-content-editor", async (importOriginal) => ({
   ...await importOriginal<typeof import("./lib/database-wedding-content-editor")>(),
   loadDatabaseWeddingContentEditor: mocks.loadContent
+}));
+vi.mock("./lib/database-public-rsvps", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./lib/database-public-rsvps")>(),
+  resolveDatabasePublicInvitation: mocks.resolvePublicInvitation,
+  submitDatabasePublicRSVP: mocks.submitPublicRsvp
+}));
+vi.mock("./lib/database-bulk-invitations", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./lib/database-bulk-invitations")>(),
+  issueDatabaseBulkInvitations: mocks.issueBulkInvitations
 }));
 
 import { handleApiRequest } from "./app";
@@ -106,9 +118,71 @@ describe("private API contract", () => {
     mocks.validateIssue.mockReset();
     mocks.validateContact.mockReset();
     mocks.issueInvitation.mockReset();
+    mocks.resolvePublicInvitation.mockReset().mockResolvedValue(resolvedInvitation);
+    mocks.submitPublicRsvp.mockReset().mockResolvedValue({
+      record: { updatedAt: "2099-12-30T10:00:00.000Z" }, entryPass: null,
+      token: invitationToken, resolved: resolvedInvitation
+    });
+    mocks.issueBulkInvitations.mockReset().mockResolvedValue([]);
   });
 
   afterEach(() => vi.unstubAllEnvs());
+
+  it("authenticates the new public and bulk routes before reading any body", async () => {
+    for (const path of ["/v1/public/invitations/resolve", "/v1/public/rsvp", "/v1/coordinator/invitations/bulk"]) {
+      expect((await handleApiRequest(apiRequest(path, "POST", {}, "wrong"))).status).toBe(401);
+      expect((await handleApiRequest(apiRequest(path, "GET"))).status).toBe(405);
+    }
+    expect(mocks.resolvePublicInvitation).not.toHaveBeenCalled();
+    expect(mocks.submitPublicRsvp).not.toHaveBeenCalled();
+    expect(mocks.issueBulkInvitations).not.toHaveBeenCalled();
+  });
+
+  it("resolves public templates by explicit side and disables them outside database mode", async () => {
+    const response = await handleApiRequest(apiRequest("/v1/public/invitations/resolve", "POST", { side: "bride" }));
+    expect(response.status).toBe(200);
+    expect(mocks.resolvePublicInvitation).toHaveBeenCalledWith("bride");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect((await handleApiRequest(apiRequest("/v1/public/invitations/resolve", "POST", {}))).status).toBe(400);
+    mocks.mode.mockReturnValue("hosted");
+    expect((await handleApiRequest(apiRequest("/v1/public/invitations/resolve", "POST", { side: "groom" }))).status).toBe(404);
+  });
+
+  it("requires public RSVP contact details and returns its new private edit credential", async () => {
+    const input = {
+      side: "bride", respondentName: "Sample Guest", contactNumber: "+1 202 555 0101",
+      status: "attending", attendances: [{ eventId: "event-one", attending: true, adults: 1, children: 0 }]
+    };
+    const response = await handleApiRequest(apiRequest("/v1/public/rsvp", "POST", input));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, mode: "database", token: invitationToken });
+    expect(mocks.submitPublicRsvp).toHaveBeenCalledWith(input);
+    expect((await handleApiRequest(apiRequest("/v1/public/rsvp", "POST", { ...input, contactNumber: "" }))).status).toBe(400);
+    expect((await handleApiRequest(apiRequest("/v1/public/rsvp", "POST", { ...input, token: invitationToken }))).status).toBe(400);
+    expect(mocks.submitPublicRsvp).toHaveBeenCalledOnce();
+  });
+
+  it("scopes bulk imports to the authenticated wedding side and its default contact", async () => {
+    const input = { csv: "name,contactnumber\nSample Guest,+12025550101", eventLimits: [{ eventId: "event-one", adults: 2, children: 0 }] };
+    const request = apiRequest("/v1/coordinator/invitations/bulk", "POST", input);
+    request.headers.set("x-wedding-side", "bride");
+    expect((await handleApiRequest(request)).status).toBe(200);
+    expect(mocks.issueBulkInvitations).toHaveBeenCalledWith({ ...input, preferredLocale: "en", contactRole: "bride" }, "bride");
+    const invalidSideRequest = apiRequest("/v1/coordinator/invitations/bulk", "POST", input);
+    invalidSideRequest.headers.set("x-wedding-side", "other");
+    expect((await handleApiRequest(invalidSideRequest)).status).toBe(400);
+    expect(mocks.issueBulkInvitations).toHaveBeenCalledOnce();
+  });
+
+  it("bounds bulk request bodies and rejects unsupported media types", async () => {
+    const oversized = apiRequest("/v1/coordinator/invitations/bulk", "POST", { csv: "a".repeat(301 * 1024) });
+    expect((await handleApiRequest(oversized)).status).toBe(413);
+    const plainText = new Request("http://api.internal/v1/coordinator/invitations/bulk", {
+      method: "POST", headers: { "x-backend-service-token": serviceToken, "content-type": "text/csv" }, body: "name,contactnumber"
+    });
+    expect((await handleApiRequest(plainText)).status).toBe(415);
+    expect(mocks.issueBulkInvitations).not.toHaveBeenCalled();
+  });
 
   it("authenticates coordinator session operations before reading bodies or storage", async () => {
     const input = { action: "validate", sessionHash: "a".repeat(64) };

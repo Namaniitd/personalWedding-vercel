@@ -11,7 +11,7 @@ import { RSVPForm } from "@/components/rsvp-form";
 import { WeddingCountdown } from "@/components/wedding-countdown";
 import { DEFAULT_INVITATION_LEAD } from "@/lib/invitation-introduction";
 import { invitationMediaUrl } from "@/lib/invitation-media";
-import type { Locale, ResolvedInvitation, WeddingArtworkKey, WeddingEvent, WeddingGuestContent } from "@/lib/types";
+import type { Locale, ResolvedInvitation, WeddingArtworkKey, WeddingEvent, WeddingGuestContent, WeddingSide } from "@/lib/types";
 
 import styles from "./wedding-invite.module.css";
 
@@ -209,7 +209,7 @@ function CoupleNames({ names, locale }: { names: string; locale: Locale }) {
   return <><span>{firstName}</span><em>{match[0].trim()}</em><span>{secondName}</span></>;
 }
 
-function CalendarDownload({ event, locale, token, labels }: { event: WeddingEvent; locale: Locale; token: string; labels: InviteCopy }) {
+function CalendarDownload({ event, locale, token, labels, publicSide }: { event: WeddingEvent; locale: Locale; token: string; labels: InviteCopy; publicSide?: WeddingSide }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [hasError, setHasError] = useState(false);
 
@@ -220,7 +220,7 @@ function CalendarDownload({ event, locale, token, labels }: { event: WeddingEven
       const response = await fetch(`/api/calendar/${encodeURIComponent(event.id)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token })
+        body: JSON.stringify(publicSide ? { publicSide } : { token })
       });
       if (!response.ok) throw new Error("Calendar download failed");
       const url = URL.createObjectURL(await response.blob());
@@ -248,7 +248,7 @@ function CalendarDownload({ event, locale, token, labels }: { event: WeddingEven
   );
 }
 
-function EventCard({ event, index, locale, token, labels }: { event: WeddingEvent; index: number; locale: Locale; token: string; labels: InviteCopy }) {
+function EventCard({ event, index, locale, token, labels, publicSide }: { event: WeddingEvent; index: number; locale: Locale; token: string; labels: InviteCopy; publicSide?: WeddingSide }) {
   return (
     <article className={styles.eventCard}>
       <div className={styles.eventDate}>
@@ -270,7 +270,7 @@ function EventCard({ event, index, locale, token, labels }: { event: WeddingEven
         </div>}
         <div className={styles.eventActions}>
           <a href={event.mapsUrl} target="_blank" rel="noopener noreferrer" aria-label={`${labels.directions}: ${event.venue[locale]}`}><Icon name="pin" size={17} />{labels.directions}<span aria-hidden="true">↗</span></a>
-          <CalendarDownload event={event} locale={locale} token={token} labels={labels} />
+          <CalendarDownload event={event} locale={locale} token={token} labels={labels} publicSide={publicSide} />
         </div>
       </div>
     </article>
@@ -312,7 +312,14 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
   const { invitation, events, rsvp, entryPass, wedding } = resolved;
   const [locale, setLocale] = useState<Locale>(invitation.preferredLocale);
   const [teaserPlaying, setTeaserPlaying] = useState(false);
-  const labels = copy[locale];
+  const isPublic = invitation.kind === "public";
+  const labels: InviteCopy = isPublic ? { ...copy[locale],
+    privateInvitation: locale === "hi" ? "आप सादर आमंत्रित हैं" : "You are warmly invited",
+    forHousehold: locale === "hi" ? "हमारे साथ उत्सव मनाएं" : "Celebrate with us",
+    privateNote: locale === "hi" ? "इस सार्वजनिक लिंक से कोई भी RSVP कर सकता है। अपने परिवार की ओर से जवाब दें।" : "Anyone with this public link can RSVP. Please reply once for your household.",
+    scheduleLead: locale === "hi" ? "नीचे दिए समारोहों में शामिल होने के लिए RSVP करें। यात्रा से पहले समय और स्थान देख लें।" : "RSVP for the celebrations below. Check the arrival time and venue before you travel.",
+    privacyCopy: locale === "hi" ? "आपका RSVP और संपर्क नंबर केवल समन्वय टीम को दिखाई देता है। अपना निजी RSVP लिंक परिवार में ही रखें।" : "Your RSVP and contact number are visible only to the coordination team. Keep your personal RSVP link within your household."
+  } : copy[locale];
   const travel = wedding.guestContent?.travel;
   const hero = wedding.guestContent?.hero;
   const heroArtwork = hero?.artworkKey ? artwork[hero.artworkKey] : null;
@@ -412,7 +419,7 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
           </div>
         </div>
         <div className={styles.eventList}>
-          {events.map((event, index) => <EventCard event={event} index={index} locale={locale} token={invitation.token} labels={labels} key={event.id} />)}
+          {events.map((event, index) => <EventCard event={event} index={index} locale={locale} token={invitation.token} labels={labels} publicSide={isPublic ? invitation.side ?? "groom" : undefined} key={event.id} />)}
         </div>
       </section>
 

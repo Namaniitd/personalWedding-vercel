@@ -29,11 +29,21 @@ describe("private page proxy", () => {
   });
 
   it("always matches private invitation and coordinator prefetches", () => {
-    for (const url of ["/i/test-invitation-token", "/coordinator", "/api/coordinator/invitations"]) {
+    for (const url of ["/i/test-invitation-token", "/rsvp/g", "/rsvp/b", "/coordinator", "/api/coordinator/invitations"]) {
       expect(unstable_doesMiddlewareMatch({
         config, url, headers: { "next-router-prefetch": "1", purpose: "prefetch" }
       })).toBe(true);
     }
+  });
+
+  it("protects public RSVP prefetches with availability checks, CSP and no-store headers", async () => {
+    const headers = { "next-router-prefetch": "1", purpose: "prefetch" };
+    const response = await proxy(new NextRequest("http://localhost/rsvp/g", { headers }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("content-security-policy")).toContain("nonce-");
+    backend.getBackendStatus.mockRejectedValueOnce(new Error("unavailable"));
+    expect((await proxy(new NextRequest("http://localhost/rsvp/b", { headers }))).status).toBe(503);
   });
 
   it("redirects unsigned coordinator pages and rejects unsigned coordinator APIs", async () => {

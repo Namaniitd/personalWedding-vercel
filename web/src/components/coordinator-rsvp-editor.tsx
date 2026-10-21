@@ -98,6 +98,7 @@ export function CoordinatorRSVPEditor({ invitation, events, onSaved, onCancel, o
         <legend className="sr-only">Household reply</legend>
         <div className={styles.grid}>
           <label>Respondent’s name<input value={draft.respondentName} onChange={(event) => setDraft((current) => ({ ...current, respondentName: event.target.value }))} minLength={2} maxLength={100} required autoComplete="off" /></label>
+          <label>Contact number (optional)<input type="tel" inputMode="tel" value={draft.contactNumber ?? ""} onChange={(event) => setDraft((current) => ({ ...current, contactNumber: event.target.value }))} maxLength={40} autoComplete="off" /></label>
           <label>Household’s plan<select value={draft.status} onChange={(event) => setStatus(event.target.value as RSVPStatus)}>
             <option value="attending">Plans to attend</option><option value="declined">Unable to attend</option><option value="confirming">Will confirm soon</option>
           </select></label>

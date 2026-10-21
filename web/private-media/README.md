@@ -4,6 +4,13 @@ in `src/lib/server/private-media.ts` maps fixed asset names to these files. The
 reading a file and sends private, no-store responses. Revoking the invitation
 also prevents subsequent media requests using that link.
 
+Public RSVP pages also display these invitation assets through
+`/rsvp/g/media/[asset]` and `/rsvp/b/media/[asset]`. These routes require a
+configured public invitation for the selected team, use the same fixed asset
+allowlist and rate limits, and retain no-store headers. Anyone can view these
+assets while the public invitation is available; private guest responses and
+personal links are never included.
+
 The invitation's optional teaser uses `teaser/prewedding-teaser-hd.mp4`,
 `teaser/prewedding-teaser-4k.mp4`, and `prewedding-teaser-poster.webp`. Only the
 poster loads before a guest chooses to play. The player then picks 4K only for
@@ -41,7 +48,7 @@ smaller images while retaining detail on larger screens. New variants strip
 source metadata and stay under the same invitation gate. Never capture real
 personal photographs, invitation links, or entry credentials in test artifacts.
 
-Next.js output tracing includes the image assets and optimized teaser only in
-the private media route's server bundle. The image optimizer permits only the generic public share image;
+Next.js output tracing includes the image assets and optimized teaser in
+the invitation media routes' server bundles. The image optimizer permits only the generic public share image;
 it cannot make cached copies of private media. Add future personal video or photo
 assets through an authenticated handler, not through `public/`.

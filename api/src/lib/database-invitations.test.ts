@@ -103,6 +103,16 @@ describe("database invitation issue validation", () => {
     });
   });
 
+  it("accepts optional phone formatting and rejects incomplete or unsafe contacts", async () => {
+    const contactNumber = "+91 (98765) 43210";
+    const parsed = databaseInvitationIssueSchema.parse({ ...validIssue, contactNumber: ` ${contactNumber} ` });
+    await expect(validateDatabaseInvitationIssue(parsed)).resolves.toMatchObject({ ok: true, value: { contactNumber } });
+    expect(databaseInvitationIssueSchema.safeParse({ ...validIssue, contactNumber: "" }).success).toBe(true);
+    for (const contactNumber of ["12345", "+1234567890123456", "guest@example.com", "91+9876543210", "1234567 ext 9"]) {
+      expect(databaseInvitationIssueSchema.safeParse({ ...validIssue, contactNumber }).success).toBe(false);
+    }
+  });
+
   it("requires one valid household name even though either locale is optional", async () => {
     expect(databaseInvitationIssueSchema.safeParse({ ...validIssue, householdNameEn: "", householdNameHi: "" }).success).toBe(false);
     expect(databaseInvitationIssueSchema.safeParse({ ...validIssue, householdNameEn: "A" }).success).toBe(false);

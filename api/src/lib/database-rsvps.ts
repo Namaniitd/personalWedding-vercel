@@ -14,6 +14,7 @@ import { requireWeddingSide, weddingSideSettingsId } from "../domain/wedding-sid
 
 type DatabaseRsvpRow = {
   respondent_name: string;
+  contact_number: string | null;
   status: RSVPInput["status"];
   attendances: unknown;
   comfort_note: string | null;
@@ -21,12 +22,13 @@ type DatabaseRsvpRow = {
   updated_at: Date | string;
 };
 
-type TimestampRow = Pick<DatabaseRsvpRow, "updated_at">;
+type TimestampRow = Pick<DatabaseRsvpRow, "updated_at" | "contact_number">;
 
 type LockedDatabaseInvitationRow = {
   id: string;
   token_hash: string;
   side: WeddingSide;
+  contact_number: string | null;
 };
 
 type DatabaseRsvpWindowRow = {
@@ -199,6 +201,7 @@ function rowToRecord(token: string, row: DatabaseRsvpRow): RSVPRecord {
   const parsed = rsvpSubmissionSchema.safeParse({
     token,
     respondentName: row.respondent_name,
+    contactNumber: row.contact_number ?? undefined,
     status: row.status,
     attendances: row.attendances,
     comfortNote: row.comfort_note ?? undefined,
@@ -215,7 +218,7 @@ function rowToRecord(token: string, row: DatabaseRsvpRow): RSVPRecord {
 /** Load a prior RSVP without ever querying by, or returning, its raw token. */
 export async function loadDatabaseRSVP(token: string): Promise<RSVPRecord | null> {
   const { rows } = await getDatabasePool().query<DatabaseRsvpRow>(
-    `select respondent_name, status, attendances, comfort_note, decline_message, updated_at
+    `select respondent_name, contact_number, status, attendances, comfort_note, decline_message, updated_at
        from wedding.rsvps
       where token_hash = $1
       limit 1`,
@@ -232,20 +235,34 @@ export async function loadDatabaseRSVP(token: string): Promise<RSVPRecord | null
 export async function saveDatabaseRSVP(input: RSVPInput): Promise<DatabaseRsvpSaveResult> {
   const parsed = rsvpSubmissionSchema.safeParse(input);
   if (!parsed.success) throw new Error("The database RSVP payload is invalid.");
-
-  const tokenHash = databaseInvitationTokenDigest(parsed.data.token);
   const client = await getDatabasePool().connect();
   let transactionOpen = false;
-
   try {
     await client.query("begin");
     transactionOpen = true;
+    const saved = await saveDatabaseRSVPInTransaction(client, parsed.data);
+    await client.query("commit");
+    transactionOpen = false;
+    return saved;
+  } catch (error) {
+    if (transactionOpen) {
+      try { await client.query("rollback"); } catch { /* Preserve the original error. */ }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
-    // Every write that can affect a pass begins by locking the invitation.
-    // Revocation and entry scanning take the same lock, so an RSVP can never
-    // create a usable pass after the link was disabled.
+/** Save inside the caller's transaction so registration and RSVP commit together. */
+export async function saveDatabaseRSVPInTransaction(client: PoolClient, input: RSVPInput): Promise<DatabaseRsvpSaveResult> {
+  const parsed = rsvpSubmissionSchema.safeParse(input);
+  if (!parsed.success) throw new Error("The database RSVP payload is invalid.");
+  const tokenHash = databaseInvitationTokenDigest(parsed.data.token);
+  try {
+    // Revocation and entry scanning use the same first lock as this writer.
     const { rows: invitationRows } = await client.query<LockedDatabaseInvitationRow>(
-      `select id, token_hash, side
+      `select id, token_hash, side, contact_number
          from wedding.invitations
         where token_hash = $1
           and status = 'active'
@@ -255,62 +272,44 @@ export async function saveDatabaseRSVP(input: RSVPInput): Promise<DatabaseRsvpSa
     );
     const invitation = invitationRows[0];
     if (!invitation) throw new Error("The invitation is no longer active.");
-
     const side = requireWeddingSide(invitation.side);
     await requireDatabaseRsvpWindowOpen(client, side);
 
     const { rows } = await client.query<TimestampRow>(
-      `insert into wedding.rsvps (
-         token_hash, respondent_name, status, attendances, comfort_note, decline_message
-       ) values ($1, $2, $3, $4::jsonb, $5, $6)
+      `insert into wedding.rsvps as responses (
+         token_hash, respondent_name, status, attendances, comfort_note, decline_message, contact_number
+       ) values ($1, $2, $3, $4::jsonb, $5, $6, nullif(coalesce($7::text, $8::text), ''))
        on conflict (token_hash) do update set
          respondent_name = excluded.respondent_name,
          status = excluded.status,
          attendances = excluded.attendances,
          comfort_note = excluded.comfort_note,
          decline_message = excluded.decline_message,
+         contact_number = case when $7::text is null then responses.contact_number else excluded.contact_number end,
          updated_at = now()
-       returning updated_at`,
-      [
-        invitation.token_hash,
-        parsed.data.respondentName,
-        parsed.data.status,
-        JSON.stringify(parsed.data.attendances),
-        parsed.data.comfortNote ?? null,
-        parsed.data.declineMessage ?? null
-      ]
+       returning updated_at, contact_number`,
+      [invitation.token_hash, parsed.data.respondentName, parsed.data.status,
+        JSON.stringify(parsed.data.attendances), parsed.data.comfortNote ?? null,
+        parsed.data.declineMessage ?? null, parsed.data.contactNumber ?? null,
+        invitation.contact_number ?? null]
     );
-    const timestamp = rows[0]?.updated_at;
-    if (!timestamp) throw new Error("The RSVP was not saved.");
-
+    const row = rows[0];
+    if (!row?.updated_at) throw new Error("The RSVP was not saved.");
     const entryPass = await syncDatabaseEntryPassInTransaction(client, {
-      invitationId: invitation.id,
-      invitationToken: parsed.data.token,
-      side,
+      invitationId: invitation.id, invitationToken: parsed.data.token, side,
       rsvp: { status: parsed.data.status, attendances: parsed.data.attendances }
     });
-
-    await client.query("commit");
-    transactionOpen = false;
     return {
       record: {
         ...parsed.data,
-        updatedAt: normalizeTimestamp(timestamp)
+        contactNumber: row.contact_number ?? undefined,
+        updatedAt: normalizeTimestamp(row.updated_at)
       },
       entryPass
     };
   } catch (error) {
-    if (transactionOpen) {
-      try {
-        await client.query("rollback");
-      } catch {
-        // Preserve the original database error for the route's generic error.
-      }
-    }
     if (isDatabaseRsvpCutoffError(error)) throw new DatabaseRsvpClosedError();
     throw error;
-  } finally {
-    client.release();
   }
 }
 

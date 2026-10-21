@@ -1,6 +1,6 @@
 # Shaadi Companion — Vercel + Neon
 
-An invitation-only wedding website with a Next.js frontend, a protected Node API, and Neon PostgreSQL. This sibling project preserves the original application's invitation, RSVP, content-editor, and QR check-in behavior and runs on Vercel Hobby and Neon Free within their usage limits.
+A wedding website with private invitations, public RSVP links, a Next.js frontend, a protected Node API, and Neon PostgreSQL. This sibling project preserves the original application's invitation, RSVP, content-editor, and QR check-in behavior and runs on Vercel Hobby and Neon Free within their usage limits.
 
 | Directory | Purpose |
 | --- | --- |
@@ -70,11 +70,21 @@ Complete the required wedding settings, coordinator contact, RSVP deadline, and 
 
 The **Wedding moment** setting controls the live countdown on guest invitations. It shows days, hours, minutes, and seconds in English or Hindi and updates when you change the saved wedding moment.
 
-Guests can choose an event name to open its details. In the event editor, add an optional bilingual description and any custom labels and values that event needs; each event keeps its own fields. The invitation hero loops through the three engagement portraits, with manual controls and reduced-motion support. All photographs remain behind the active invitation link.
+Guests can choose an event name to open its details. In the event editor, add an optional bilingual description and any custom labels and values that event needs; each event keeps its own fields. The invitation hero loops through the three engagement portraits, with manual controls and reduced-motion support. Invitation photographs and the teaser also appear on the public RSVP pages.
 
-Below the banner, guests can choose to watch the pre-wedding teaser. It downloads only after play is selected, starts with sound, and keeps its landscape framing on phones. Native video controls let guests pause, seek, or mute. The film and preview remain behind the invitation link; see [the private media guide](web/private-media/README.md) to replace them later.
+Below the banner, guests can choose to watch the pre-wedding teaser. It downloads only after play is selected, starts with sound, and keeps its landscape framing on phones. Native video controls let guests pause, seek, or mute. See [the private media guide](web/private-media/README.md) to replace the film and preview later.
 
 Under **Content → Wedding details → Invitation introduction**, each team can edit the English and Hindi sentence above the couple names. It defaults to “Together with our families, we invite you to celebrate the wedding of” in English. **Use default wording** restores the original text while keeping other invitation sections.
+
+### Public RSVPs and bulk private invitations
+
+In **Invitations**, copy the reusable public link: `/rsvp/g` for groom guests or `/rsvp/b` for bride guests. Anyone with that link can view the invitation and submit an RSVP with their name and contact number. Public pages show the team's published events marked **selected by default**, with their default adult and child limits. Review these selections in the Content editor before sharing; events excluded from the defaults remain available for private invitations. Public pages include the invitation photos, teaser, venue information, and reply-to contact. Guest responses and contact numbers are visible only to that guest through their personal link and to their team's coordinators.
+
+Every public submission creates a separate private invitation and response. Guests receive a personal link to save for returning and changing their RSVP; keep using that link for updates. A contact number alone does not grant access to an existing response. Ordinary private invitation creation remains available and now accepts an optional contact number that prefills the RSVP form. RSVP forms and coordinator response lists also include the contact number.
+
+To create many private invitations, select the celebrations, guest limits, language, and reply-to contact in the existing invitation form, then upload a UTF-8 CSV with columns `name,contactnumber` (either order). Up to 200 contacts and 256 KiB are accepted per upload. Quoted names and formatted international phone numbers are supported. The whole file is validated before creation; invalid rows and repeated numbers within the file are reported without creating a partial batch. Download or copy the resulting links before dismissing them: raw private links cannot be recovered later. Store the downloaded contact/link CSV privately.
+
+For an existing database, apply `api/database/schema.sql` and re-run `api/database/grant-runtime-role.sql` with the schema owner before deploying the updated API, then deploy the frontend. The migration adds nullable contact fields and preserves existing invitations, responses, content, credentials, and peppers. These new public and bulk features require the direct PostgreSQL database mode.
 
 ### Restart without losing saved content
 

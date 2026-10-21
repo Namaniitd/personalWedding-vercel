@@ -68,7 +68,7 @@ export function CoordinatorFollowUps({ side, invitations, issuerOptions }: { sid
               <thead><tr><th scope="col">Household</th><th scope="col">Invitation group</th><th scope="col">Follow-up</th><th scope="col">Last update</th><th scope="col">Open</th></tr></thead>
               <tbody>
                 {followUpRows.map((row) => <tr key={row.id}>
-                  <td data-label="Household"><strong>{row.household}</strong></td>
+                  <td data-label="Household"><strong>{row.household}</strong>{row.contactNumber && <small>{row.contactNumber}</small>}</td>
                   <td data-label="Invitation group">{row.group}</td>
                   <td data-label="Follow-up"><strong>{row.state === "Confirming" ? "Confirm attendance" : "Request RSVP"}</strong></td>
                   <td data-label="Last update">{row.updated}</td>

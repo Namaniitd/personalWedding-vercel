@@ -27,6 +27,15 @@ describe("coordinator RSVP operation", () => {
     }
   });
 
+  it("passes a validated contact number through the audited operation", async () => {
+    query.mockResolvedValue({ rows: [{ outcome: "saved", updated_at: "2099-01-01T00:00:00.123Z" }] });
+    await saveDatabaseCoordinatorRSVP({ ...input, contactNumber: " +91 (98765) 43210 " });
+    const payload = JSON.parse(query.mock.calls[0][1][1]);
+    expect(payload.contactNumber).toBe("+91 (98765) 43210");
+    expect(coordinatorRsvpSubmissionSchema.safeParse({ ...input, contactNumber: "invalid" }).success).toBe(false);
+    expect(coordinatorRsvpSubmissionSchema.safeParse({ ...input, contactNumber: "" }).success).toBe(true);
+  });
+
   it("rejects unexpected credentials, duplicate events, missing revisions, and inappropriate notes", () => {
     expect(coordinatorRsvpSubmissionSchema.safeParse({ ...input, token: "should-not-be-accepted" }).success).toBe(false);
     expect(coordinatorRsvpSubmissionSchema.safeParse({ ...input, attendances: [...input.attendances, ...input.attendances] }).success).toBe(false);

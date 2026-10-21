@@ -338,7 +338,7 @@
 .schedule { background: #fbf5ea; }
 .scheduleIntro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 420px); align-items: center; gap: clamp(36px, 6vw, 100px); margin-bottom: 69px; }
 .sectionIntro { max-width: 690px; }
-.sectionIntro h2 { margin: 8px 0 13px; color: #4d1c2a; font-family: var(--editorial); font-size: clamp(47px, 5vw, 70px); font-weight: 550; letter-spacing: -.055em; line-height: .98; text-wrap: balance; }
+.sectionIntro h2 { margin: 8px 0 13px; color: #4d1c2a; font-family: var(--editorial); font-size: clamp(47px, 5vw, 70px); font-weight: 600; letter-spacing: -.055em; line-height: .98; text-wrap: balance; }
 .page[lang="hi"] .sectionIntro h2 { font-size: clamp(38px, 4vw, 55px); font-weight: 650; letter-spacing: -.025em; line-height: 1.18; }
 .sectionIntro > p:last-child:not(.eyebrow):not(.invocation) { max-width: 620px; margin: 0; color: var(--guest-muted); font-size: 15px; line-height: 1.7; }
 .schedulePhoto { position: relative; min-height: 260px; overflow: hidden; border-radius: 180px 180px 12px 12px; background: #9f3529; box-shadow: 0 20px 45px rgba(72, 29, 28, .16); }
@@ -354,7 +354,7 @@
 .eventDate > span:last-child { margin-top: 9px; color: #795e4d; font-size: 13px; font-weight: 750; }
 .page[lang="hi"] .eventDate strong { font-size: 24px; }
 .eventBody { min-width: 0; padding: 0 0 0 38px; border-left: 2px solid #d9aa79; }
-.eventBody h3 { margin: 0 0 19px; color: #452029; font-family: var(--editorial); font-size: 42px; font-weight: 550; letter-spacing: -.045em; line-height: 1.04; }
+.eventBody h3 { margin: 0 0 19px; color: #452029; font-family: var(--editorial); font-size: 42px; font-weight: 600; letter-spacing: -.045em; line-height: 1.04; }
 .page[lang="hi"] .eventBody h3 { font-size: 32px; font-weight: 650; letter-spacing: -.02em; }
 .eventFacts { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 16px 25px; }
 .eventFacts > div { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
@@ -386,7 +386,7 @@
 .rsvpSection :global(.rsvp-card-shell) { position: relative; z-index: 1; max-width: 900px; border: 1px solid #e7c79d; border-top: 6px solid #ebb05e; border-radius: 18px; background: #fffaf2; box-shadow: 0 30px 70px rgba(30, 3, 18, .26); }
 .rsvpSection :global(.rsvp-card-shell)::before, .rsvpSection :global(.rsvp-card-shell)::after { display: none; }
 .rsvpSection :global(.rsvp-heading) { max-width: 640px; margin: 0 0 30px; text-align: left; }
-.rsvpSection :global(.rsvp-heading h2) { color: #4d1b2b; font-family: var(--editorial); font-size: clamp(41px, 4.5vw, 56px); }
+.rsvpSection :global(.rsvp-heading h2) { color: #4d1b2b; font-family: var(--editorial); font-size: clamp(41px, 4.5vw, 56px); font-weight: 600; }
 .rsvpSection :global(.plan-option), .rsvpSection :global(.event-response) { border-radius: 12px; }
 .rsvpSection :global(.plan-option) { min-height: 93px; padding: 16px; }
 .rsvpSection :global(.plan-option strong) { color: #42322d; font-size: 14px; }
@@ -427,7 +427,7 @@
 
 .helpSection { display: flex; align-items: center; justify-content: space-between; gap: 36px; padding: 75px max(25px, calc((100vw - 1180px) / 2)); color: #4a1928; background: #edbd72; }
 .helpSection .eyebrow { color: #78302c; }
-.helpSection h2 { margin: 8px 0 10px; font-family: var(--editorial); font-size: clamp(40px, 4vw, 57px); font-weight: 550; letter-spacing: -.045em; line-height: 1.04; }
+.helpSection h2 { margin: 8px 0 10px; font-family: var(--editorial); font-size: clamp(40px, 4vw, 57px); font-weight: 600; letter-spacing: -.045em; line-height: 1.04; }
 .page[lang="hi"] .helpSection h2 { font-size: clamp(33px, 3.6vw, 48px); letter-spacing: -.02em; }
 .helpSection p:not(.eyebrow) { max-width: 590px; margin: 0 0 14px; color: #5b3a30; font-size: 14px; line-height: 1.65; }
 .helpSection strong { font-size: 13px; }

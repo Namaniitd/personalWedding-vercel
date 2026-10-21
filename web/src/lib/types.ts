@@ -111,6 +111,9 @@ export interface WeddingEvent {
 }
 
 export interface Invitation {
+  /** Public invitations allow a new household to register without a private token. */
+  kind?: "private" | "public";
+  contactNumber?: string;
   /** Omitted only by older deployment contracts. */
   side?: WeddingSide;
   token: string;
@@ -146,6 +149,7 @@ export interface AttendanceInput {
 export interface RSVPInput {
   token: string;
   respondentName: string;
+  contactNumber?: string;
   status: RSVPStatus;
   attendances: AttendanceInput[];
   comfortNote?: string;
@@ -298,6 +302,7 @@ export interface DatabaseWeddingContentSnapshot {
  */
 export interface DatabaseCoordinatorInvitation {
   id: string;
+  contactNumber?: string;
   householdName: LocalizedText;
   preferredLocale: Locale;
   contactRole: ContactRole;
@@ -316,6 +321,7 @@ export interface DatabaseCoordinatorInvitation {
   createdAt: string;
   rsvp: {
     respondentName: string;
+    contactNumber?: string;
     status: RSVPStatus;
     attendances: AttendanceInput[];
     comfortNote?: string;

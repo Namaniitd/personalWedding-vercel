@@ -274,6 +274,7 @@ create index if not exists events_published_order_idx
 create table if not exists wedding.rsvps (
   token_hash text primary key check (token_hash ~ '^[0-9a-f]{64}$'),
   respondent_name text not null check (char_length(respondent_name) between 2 and 100),
+  contact_number text,
   status text not null check (status in ('attending', 'declined', 'confirming')),
   attendances jsonb not null default '[]'::jsonb check (jsonb_typeof(attendances) = 'array'),
   comfort_note text check (char_length(comfort_note) <= 500),
@@ -282,6 +283,16 @@ create table if not exists wedding.rsvps (
   updated_at timestamptz not null default now(),
   constraint rsvps_comfort_note_status_check check (status = 'attending' or comfort_note is null),
   constraint rsvps_decline_message_status_check check (status = 'declined' or decline_message is null)
+);
+
+-- Additive contact fields keep existing invitation tokens and RSVP records intact.
+alter table wedding.rsvps add column if not exists contact_number text;
+alter table wedding.rsvps drop constraint if exists rsvps_contact_number_check;
+alter table wedding.rsvps add constraint rsvps_contact_number_check check (
+  contact_number is null or (
+    char_length(contact_number) <= 40 and contact_number ~ '^\+?[0-9 ()-]+$'
+    and char_length(regexp_replace(contact_number, '[^0-9]', '', 'g')) between 7 and 15
+  )
 );
 
 -- Raw invitation URLs are never stored in plaintext. `token_hash` is an HMAC
@@ -299,6 +310,7 @@ create table if not exists wedding.invitations (
   token_ciphertext text,
   household_name_en text not null check (char_length(household_name_en) between 2 and 100),
   household_name_hi text not null check (char_length(household_name_hi) between 2 and 100),
+  contact_number text,
   preferred_locale text not null check (preferred_locale in ('en', 'hi')),
   contact_role text not null default 'groom' constraint invitations_contact_role_check check (contact_role in ('groom', 'bride')),
   event_limits jsonb not null check (
@@ -317,6 +329,15 @@ create table if not exists wedding.invitations (
     rsvp_deleted_at is null or status = 'revoked'
   ),
   created_at timestamptz not null default now()
+);
+
+alter table wedding.invitations add column if not exists contact_number text;
+alter table wedding.invitations drop constraint if exists invitations_contact_number_check;
+alter table wedding.invitations add constraint invitations_contact_number_check check (
+  contact_number is null or (
+    char_length(contact_number) <= 40 and contact_number ~ '^\+?[0-9 ()-]+$'
+    and char_length(regexp_replace(contact_number, '[^0-9]', '', 'g')) between 7 and 15
+  )
 );
 
 alter table wedding.invitations add column if not exists side text not null default 'groom';
@@ -849,6 +870,8 @@ as $$
 declare
   v_invitation wedding.invitations%rowtype;
   v_previous_updated_at timestamptz;
+  v_previous_contact_number text;
+  v_contact_number text;
   v_updated_at timestamptz;
   v_item jsonb;
   v_limit jsonb;
@@ -873,7 +896,7 @@ begin
     return;
   end if;
 
-  select responses.updated_at into v_previous_updated_at from wedding.rsvps as responses
+  select responses.updated_at, responses.contact_number into v_previous_updated_at, v_previous_contact_number from wedding.rsvps as responses
    where responses.token_hash = v_invitation.token_hash for update;
   if date_trunc('milliseconds', v_previous_updated_at) is distinct from p_expected_updated_at then
     return query select 'stale'::text, null::timestamptz;
@@ -882,9 +905,17 @@ begin
 
   v_status := p_payload ->> 'status';
   if jsonb_typeof(p_payload) is distinct from 'object'
-    or p_payload - array['respondentName', 'status', 'attendances', 'comfortNote', 'declineMessage'] <> '{}'::jsonb
+    or p_payload - array['respondentName', 'contactNumber', 'status', 'attendances', 'comfortNote', 'declineMessage'] <> '{}'::jsonb
     or jsonb_typeof(p_payload -> 'respondentName') is distinct from 'string'
     or char_length(btrim(p_payload ->> 'respondentName')) not between 2 and 100
+    or (p_payload ? 'contactNumber' and (
+      jsonb_typeof(p_payload -> 'contactNumber') is distinct from 'string'
+      or char_length(btrim(p_payload ->> 'contactNumber')) > 40
+      or (btrim(p_payload ->> 'contactNumber') <> '' and (
+        btrim(p_payload ->> 'contactNumber') !~ '^\+?[0-9 ()-]+$'
+        or char_length(regexp_replace(p_payload ->> 'contactNumber', '[^0-9]', '', 'g')) not between 7 and 15
+      ))
+    ))
     or v_status is null or v_status not in ('attending', 'declined', 'confirming')
     or jsonb_typeof(p_payload -> 'attendances') is distinct from 'array'
     or jsonb_typeof(p_payload -> 'comfortNote') not in ('string', 'null')
@@ -942,15 +973,21 @@ begin
     return;
   end if;
 
+  -- Older frontends omit the field, so keep an existing response's number.
+  -- New manual replies inherit the invitation contact unless explicitly cleared.
+  v_contact_number := case
+    when p_payload ? 'contactNumber' then nullif(btrim(p_payload ->> 'contactNumber'), '')
+    when v_previous_updated_at is not null then v_previous_contact_number
+    else v_invitation.contact_number end;
   v_previous_marker := current_setting('wedding.coordinator_rsvp_write', true);
   perform set_config('wedding.coordinator_rsvp_write', v_invitation.token_hash, true);
   insert into wedding.rsvps as responses
-    (token_hash, respondent_name, status, attendances, comfort_note, decline_message)
-  values (v_invitation.token_hash, btrim(p_payload ->> 'respondentName'), v_status,
+    (token_hash, respondent_name, contact_number, status, attendances, comfort_note, decline_message)
+  values (v_invitation.token_hash, btrim(p_payload ->> 'respondentName'), v_contact_number, v_status,
           p_payload -> 'attendances', nullif(btrim(p_payload ->> 'comfortNote'), ''),
           nullif(btrim(p_payload ->> 'declineMessage'), ''))
   on conflict (token_hash) do update set
-    respondent_name = excluded.respondent_name, status = excluded.status,
+    respondent_name = excluded.respondent_name, contact_number = excluded.contact_number, status = excluded.status,
     attendances = excluded.attendances, comfort_note = excluded.comfort_note,
     decline_message = excluded.decline_message
   returning responses.updated_at into v_updated_at;

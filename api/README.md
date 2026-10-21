@@ -99,6 +99,31 @@ The coordinator RSVP action records responses received by phone and corrects a s
 
 ## Schema and local data
 
+Public invitations use `POST /v1/public/invitations/resolve` with `{side}` and
+`POST /v1/public/rsvp` with RSVP details, `side`, and a required `contactNumber`.
+The template contains only published, default-selected events and never existing
+guest responses. Submission creates a separate private invitation and RSVP in
+one transaction and returns its personal edit token. Public registration never
+looks up an existing guest by name or phone number. All internal endpoints still
+require the backend service credential; the frontend enforces browser origin and
+network/contact rate limits.
+
+`POST /v1/coordinator/invitations/bulk` accepts `{csv, eventLimits,
+preferredLocale?, contactRole?}` and the authenticated workspace header. The CSV
+must contain `name,contactnumber`, at most 200 contacts and 256 KiB. The whole
+file is validated before inserting, and every invitation commits together.
+Private issuance and RSVP payloads accept optional `contactNumber`; old callers
+that omit it preserve saved contact numbers, and an explicit empty string clears
+the RSVP number. Apply the schema and runtime grants before this API upgrade;
+the added nullable columns do not change existing invitation credentials.
+
+The opt-in public/bulk integration suite uses
+`RUN_PUBLIC_INVITATION_DATABASE_TESTS=true`, `DATABASE_URL` for a restricted
+runtime login, and `API_TEST_DATABASE_OWNER_URL` for its owner. Run
+`pnpm exec vitest run src/public-bulk-postgres.integration.test.ts` only against
+the disposable synthetic database on loopback port 54329, separately from other
+integration suites that configure the bride workspace.
+
 `database/schema.sql` is the canonical direct PostgreSQL schema. The local Postgres bootstrap runs `database/init-local-postgres.sh`. For a managed database, use a separate schema-owner `DATABASE_SCHEMA_URL` and run `pnpm db:apply`. Production schema changes additionally require `DATABASE_SCHEMA_APPLY_TARGET=production` and `DATABASE_SCHEMA_APPLY_CONFIRMATION=apply-production-schema`.
 
 Create a separate non-admin PostgreSQL login role for API traffic. After each schema migration, connect as the `wedding` schema owner and grant only the runtime permissions used by this API:

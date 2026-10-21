@@ -32,6 +32,18 @@ import { coordinatorSessionRequestSchema } from "./domain/coordinator-session.js
 import { manageDatabaseCoordinatorSession } from "./lib/database-coordinator-sessions.js";
 import { weddingSideSchema } from "./domain/wedding-side.js";
 import type { WeddingSide } from "./domain/types.js";
+import {
+  PublicRsvpValidationError,
+  publicInvitationLookupSchema,
+  publicRsvpSubmissionSchema,
+  resolveDatabasePublicInvitation,
+  submitDatabasePublicRSVP
+} from "./lib/database-public-rsvps.js";
+import {
+  BulkInvitationValidationError,
+  bulkInvitationIssueSchema,
+  issueDatabaseBulkInvitations
+} from "./lib/database-bulk-invitations.js";
 
 const PRIVATE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -186,6 +198,43 @@ async function submitRsvpRequest(request: Request) {
   }
 }
 
+async function resolvePublicInvitationRequest(request: Request) {
+  if (getInvitationStoreMode() !== "database") return coordinatorUnavailable();
+  const body = await readJsonBody(request, 1024);
+  if (!body.ok) return jsonBodyError(body, "A wedding side is required.");
+  const parsed = publicInvitationLookupSchema.safeParse(body.value);
+  if (!parsed.success) return privateJson({ error: "A wedding side is required." }, 400);
+  try {
+    return privateJson({ ok: true, resolved: await resolveDatabasePublicInvitation(parsed.data.side) });
+  } catch {
+    return privateJson({ error: "The public invitation is temporarily unavailable." }, 503);
+  }
+}
+
+async function submitPublicRsvpRequest(request: Request) {
+  if (getInvitationStoreMode() !== "database") return coordinatorUnavailable();
+  const body = await readJsonBody(request, 16 * 1024);
+  if (!body.ok) return jsonBodyError(body, "Please review the RSVP details and try again.");
+  const parsed = publicRsvpSubmissionSchema.safeParse(body.value);
+  if (!parsed.success) return privateJson({ error: "Please review the RSVP details and enter a valid contact number." }, 400);
+  try {
+    const saved = await submitDatabasePublicRSVP(parsed.data);
+    return privateJson({
+      ok: true,
+      mode: "database",
+      updatedAt: saved.record.updatedAt,
+      entryPass: saved.entryPass,
+      resolved: saved.resolved,
+      token: saved.token
+    });
+  } catch (error) {
+    if (error instanceof PublicRsvpValidationError || error instanceof DatabaseRsvpClosedError) {
+      return privateJson({ error: error.message }, 422);
+    }
+    return privateJson({ error: "We could not save your response. Please contact the coordination desk." }, 503);
+  }
+}
+
 function coordinatorAvailable() {
   return getInvitationStoreMode() === "database";
 }
@@ -289,6 +338,24 @@ async function issueInvitationRequest(request: Request, side: WeddingSide) {
     return privateJson({ ok: true, issued: request.headers.has("x-wedding-side") ? issued : legacyIssued });
   } catch {
     return privateJson({ error: "The invitation service is temporarily unavailable." }, 503);
+  }
+}
+
+async function issueBulkInvitationsRequest(request: Request, side: WeddingSide) {
+  if (!coordinatorAvailable()) return coordinatorUnavailable();
+  const body = await readJsonBody(request, 300 * 1024);
+  if (!body.ok) return jsonBodyError(body, "Please review the CSV and invitation details.");
+  const input = body.value && typeof body.value === "object" && !Array.isArray(body.value)
+    && !Object.hasOwn(body.value, "contactRole")
+    ? { ...body.value, contactRole: side }
+    : body.value;
+  const parsed = bulkInvitationIssueSchema.safeParse(input);
+  if (!parsed.success) return privateJson({ error: "Please review the CSV and invitation details. Upload at most 200 guests in a CSV no larger than 256 KiB." }, 400);
+  try {
+    return privateJson({ ok: true, issued: await issueDatabaseBulkInvitations(parsed.data, side) });
+  } catch (error) {
+    if (error instanceof BulkInvitationValidationError) return privateJson({ error: error.message }, 422);
+    return privateJson({ error: "The invitations could not be created. Please try again." }, 503);
   }
 }
 
@@ -412,9 +479,12 @@ const routeMethods: Record<string, string> = {
   "/v1/security/coordinator-session": "POST",
   "/v1/invitations/resolve": "POST",
   "/v1/rsvp": "POST",
+  "/v1/public/invitations/resolve": "POST",
+  "/v1/public/rsvp": "POST",
   "/v1/coordinator/workspace": "GET",
   "/v1/coordinator/content": "GET, PUT",
   "/v1/coordinator/invitations": "GET, POST",
+  "/v1/coordinator/invitations/bulk": "POST",
   "/v1/coordinator/invitations/revoke": "POST",
   "/v1/coordinator/invitations/rsvp/delete": "POST",
   "/v1/coordinator/check-in": "POST",
@@ -465,6 +535,8 @@ export async function handleApiRequest(request: Request): Promise<Response> {
   }
   if (pathname === "/v1/invitations/resolve") return resolveInvitationRequest(request);
   if (pathname === "/v1/rsvp") return submitRsvpRequest(request);
+  if (pathname === "/v1/public/invitations/resolve") return resolvePublicInvitationRequest(request);
+  if (pathname === "/v1/public/rsvp") return submitPublicRsvpRequest(request);
   let side: WeddingSide = "groom";
   if (pathname.startsWith("/v1/coordinator/")) {
     const parsedSide = weddingSideSchema.safeParse(request.headers.get("x-wedding-side") ?? "groom");
@@ -478,6 +550,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
   if (pathname === "/v1/coordinator/invitations") {
     return request.method === "GET" ? coordinatorInvitationsRequest(side) : issueInvitationRequest(request, side);
   }
+  if (pathname === "/v1/coordinator/invitations/bulk") return issueBulkInvitationsRequest(request, side);
   if (pathname === "/v1/coordinator/invitations/revoke") return revokeInvitationRequest(request, side);
   if (pathname === "/v1/coordinator/invitations/rsvp/delete") return deleteRsvpRequest(request, side);
   if (pathname === "/v1/coordinator/check-in") return checkInRequest(request, side);

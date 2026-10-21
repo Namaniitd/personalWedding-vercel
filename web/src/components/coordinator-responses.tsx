@@ -42,7 +42,7 @@ export function CoordinatorResponses({
   const filteredRows = useMemo(() => rows.filter((row) => {
     const matchesFilter = matchesRSVPFilter(row, filter);
     const term = search.trim().toLowerCase();
-    const matchesSearch = !term || row.household.toLowerCase().includes(term) || row.group.toLowerCase().includes(term);
+    const matchesSearch = !term || row.household.toLowerCase().includes(term) || row.group.toLowerCase().includes(term) || row.contactNumber.toLowerCase().includes(term);
     return matchesFilter && matchesSearch;
   }), [filter, rows, search]);
 
@@ -96,7 +96,7 @@ export function CoordinatorResponses({
           <label className="admin-search">
             <span className="sr-only">Search RSVP records</span>
             <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search household or group" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, number or group" />
             {search && <button type="button" aria-label="Clear search" onClick={() => setSearch("")}>×</button>}
           </label>
           <label className="admin-sort">
@@ -112,14 +112,14 @@ export function CoordinatorResponses({
 
       <div className="admin-table-wrap">
         <table>
-          <caption className="sr-only">RSVP records for private invitations.</caption>
+          <caption className="sr-only">RSVP records from public and private invitations.</caption>
           <thead><tr><th scope="col">Household</th><th scope="col">Invitation group</th><th scope="col">Attendance</th><th scope="col">RSVP state</th><th scope="col">Reply details</th><th scope="col">Last update</th><th scope="col">Record / edit</th></tr></thead>
           <tbody>
             {visibleRows.map((row) => {
               const invitation = invitations.find((candidate) => candidate.id === row.invitationId);
               const response = invitation?.rsvp;
               return <tr key={row.id}>
-              <td data-label="Household"><strong>{row.household}</strong></td>
+              <td data-label="Household"><strong>{row.household}</strong>{row.contactNumber && <small>{row.contactNumber}</small>}</td>
               <td data-label="Invitation group">{row.group}</td>
               <td data-label="Attendance"><b>{row.events}</b> event{row.events === 1 ? "" : "s"}<small>{row.adults} adults · {row.children} children</small></td>
               <td data-label="RSVP state"><span className={`status-pill status-${row.state.toLowerCase().replace(/\s/g, "-")}`}>{row.state}</span></td>

@@ -19,11 +19,11 @@ const displayFont = localFont({
 
 const editorialFont = localFont({
   src: [
-    { path: "./fonts/bodoni-moda-latin-variable.woff2", weight: "400 900", style: "normal" },
-    { path: "./fonts/bodoni-moda-latin-italic-variable.woff2", weight: "400 900", style: "italic" }
+    { path: "./fonts/lora-latin-variable.woff2", weight: "400 700", style: "normal" },
+    { path: "./fonts/lora-latin-italic-variable.woff2", weight: "400 700", style: "italic" }
   ],
   display: "swap",
-  fallback: ["Didot", "Bodoni MT", "Georgia", "serif"],
+  fallback: ["Georgia", "Times New Roman", "serif"],
   adjustFontFallback: "Times New Roman",
   variable: "--font-editorial"
 });

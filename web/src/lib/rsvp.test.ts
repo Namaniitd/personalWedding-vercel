@@ -56,6 +56,15 @@ function input(overrides: Partial<RSVPInput> = {}): RSVPInput {
 }
 
 describe("RSVP validation", () => {
+  it("accepts optional contact numbers while validating real phone input", () => {
+    expect(rsvpSubmissionSchema.safeParse(input()).success).toBe(true);
+    expect(rsvpSubmissionSchema.parse(input({ contactNumber: " +91 (98765) 43210 " })).contactNumber).toBe("+91 (98765) 43210");
+    expect(rsvpSubmissionSchema.safeParse(input({ contactNumber: "" })).success).toBe(true);
+    for (const contactNumber of ["12345", "+1234567890123456", "guest@example.com", "91+9876543210"]) {
+      expect(rsvpSubmissionSchema.safeParse(input({ contactNumber })).success).toBe(false);
+    }
+  });
+
   it("accepts an invited event within its hard adult and child limits", () => {
     const result = validateRSVPForInvitation(input(), { invitation: liveLikeInvitation, events });
     expect(result.ok).toBe(true);

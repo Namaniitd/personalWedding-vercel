@@ -4,7 +4,8 @@ import {
   BackendUnavailableError,
   getBackendCoordinatorWorkspace,
   requestBackend,
-  resolveBackendInvitation
+  resolveBackendInvitation,
+  resolvePublicInvitation
 } from "./backend-client";
 
 const token = "frontend-test-service-token-abcdefghijklmnopqrstuvwxyz";
@@ -26,6 +27,22 @@ describe("frontend private API client", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+  });
+
+  it("accepts a public template only when its side and privacy boundary match", async () => {
+    const resolved = { invitation: { kind: "public", side: "bride", token: "public-invitation-bride" }, events: [], wedding: {}, rsvp: null };
+    fetchMock.mockResolvedValueOnce(Response.json({ ok: true, resolved }));
+    await expect(resolvePublicInvitation("bride")).resolves.toEqual(resolved);
+    expect((fetchMock.mock.calls[0]?.[0] as URL).pathname).toBe("/v1/public/invitations/resolve");
+    for (const invalid of [
+      { ...resolved, rsvp: { respondentName: "Private guest" } },
+      { ...resolved, entryPass: { qrPayload: "private" } },
+      { ...resolved, invitation: { ...resolved.invitation, side: "groom" } },
+      { ...resolved, invitation: { ...resolved.invitation, kind: "private" } }
+    ]) {
+      fetchMock.mockResolvedValueOnce(Response.json({ ok: true, resolved: invalid }));
+      await expect(resolvePublicInvitation("bride")).rejects.toBeInstanceOf(BackendUnavailableError);
+    }
   });
 
   it("refuses an external backend URL before sending the service token", async () => {

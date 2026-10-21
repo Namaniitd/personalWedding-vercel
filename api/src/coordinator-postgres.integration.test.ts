@@ -53,8 +53,8 @@ const enabled = process.env.RUN_DATABASE_RUNTIME_TESTS === "true"
 
   afterAll(async () => { await resetDatabaseRsvpPoolForTest(); await owner.end(); });
 
-  async function issue() {
-    const issued = await issueDatabaseInvitation({ householdNameEn: "Runtime test household", preferredLocale: "en", contactRole: "groom", eventLimits: [{ eventId, adults: 2, children: 1 }] });
+  async function issue(contactNumber?: string) {
+    const issued = await issueDatabaseInvitation({ contactNumber, householdNameEn: "Runtime test household", preferredLocale: "en", contactRole: "groom", eventLimits: [{ eventId, adults: 2, children: 1 }] });
     ids.push(issued.id);
     return issued;
   }
@@ -91,6 +91,33 @@ const enabled = process.env.RUN_DATABASE_RUNTIME_TESTS === "true"
     expect(JSON.stringify(audit)).not.toContain(input.comfortNote);
     await expect(getDatabasePool().query("insert into wedding.coordinator_rsvp_audit(invitation_id,updated_at) values($1,now())", [issued.id])).rejects.toMatchObject({ code: "42501" });
     await expect(getDatabasePool().query("alter function wedding.save_coordinator_rsvp(uuid,jsonb,timestamptz) security invoker")).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("inherits, edits and clears contact numbers without old clients erasing them", async () => {
+    const issued = await issue("+91 (98765) 43210");
+    expect((await resolveDatabaseInvitation(issued.token))?.invitation.contactNumber).toBe("+91 (98765) 43210");
+    const input = details(issued.id);
+    const { invitationId: _id, expectedUpdatedAt: _revision, ...payload } = input;
+    const inherited = await saveDatabaseRSVP({ ...payload, token: issued.token });
+    expect(inherited.record.contactNumber).toBe("+91 (98765) 43210");
+    const edited = await saveDatabaseRSVP({ ...payload, token: issued.token, contactNumber: "+1 (202) 555-0123" });
+    expect(edited.record.contactNumber).toBe("+1 (202) 555-0123");
+    const preserved = await saveDatabaseRSVP({ ...payload, token: issued.token });
+    expect(preserved.record.contactNumber).toBe("+1 (202) 555-0123");
+    const manual = await saveDatabaseCoordinatorRSVP({ ...input, expectedUpdatedAt: preserved.record.updatedAt });
+    if (manual.kind !== "saved") throw new Error("Manual RSVP did not save");
+    expect((await resolveDatabaseInvitation(issued.token))?.rsvp?.contactNumber).toBe("+1 (202) 555-0123");
+    const invalid = await getDatabasePool().query("select outcome from wedding.save_coordinator_rsvp($1,$2::jsonb,$3::timestamptz)", [issued.id, JSON.stringify({ ...payload, contactNumber: "not-a-phone" }), manual.updatedAt]);
+    expect(invalid.rows[0].outcome).toBe("invalid");
+    const cleared = await saveDatabaseCoordinatorRSVP({ ...input, contactNumber: "", expectedUpdatedAt: manual.updatedAt });
+    expect(cleared.kind).toBe("saved");
+    const final = await resolveDatabaseInvitation(issued.token);
+    expect(final?.rsvp?.contactNumber).toBeUndefined();
+    expect(final?.invitation.contactNumber).toBe("+91 (98765) 43210");
+    const listed = (await listDatabaseCoordinatorInvitations()).find((row) => row.id === issued.id);
+    expect(listed?.contactNumber).toBe("+91 (98765) 43210");
+    expect(listed?.rsvp?.contactNumber).toBeUndefined();
+    await expect(getDatabasePool().query("update wedding.rsvps set contact_number='invalid' where token_hash=$1", [databaseInvitationTokenDigest(issued.token)])).rejects.toMatchObject({ code: "23514" });
   });
 
   it("enforces revisions, invitation limits, revocation and pass invalidation/recovery", async () => {

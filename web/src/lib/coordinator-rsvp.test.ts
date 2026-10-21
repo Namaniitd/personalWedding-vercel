@@ -11,6 +11,12 @@ const invitation: DatabaseCoordinatorInvitation = {
 };
 
 describe("coordinator phone RSVP editing", () => {
+  it("prefills the invitation contact but respects a cleared number on an existing reply", () => {
+    expect(coordinatorRsvpDraft({ ...invitation, contactNumber: "+91 90000 00000" }).contactNumber).toBe("+91 90000 00000");
+    const saved: DatabaseCoordinatorInvitation = { ...invitation, contactNumber: "+91 90000 00000", rsvp: { respondentName: "Guest One", status: "declined", attendances: [], updatedAt: "2026-10-09T10:00:00.000Z" } };
+    expect(coordinatorRsvpDraft(saved).contactNumber).toBe("");
+    expect(coordinatorRsvpSchema.safeParse({ ...coordinatorRsvpDraft(invitation), respondentName: "Guest One", contactNumber: "123" }).success).toBe(false);
+  });
   it("records an old invitation without a bearer credential or guest deadline", () => {
     const draft = coordinatorRsvpDraft(invitation);
     draft.respondentName = "Guest One";

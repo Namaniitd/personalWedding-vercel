@@ -59,6 +59,14 @@ const issuerOptions: DatabaseInvitationIssuerOptions = {
 };
 
 describe("coordinator RSVP rows", () => {
+  it("shows guest numbers in rows and exports without restoring a cleared reply number", () => {
+    const invited = invitation({ contactNumber: "+91 90000 00000" });
+    expect(invitationRow(invited).contactNumber).toBe("+91 90000 00000");
+    expect(buildCoordinatorCsv([invited], issuerOptions)).toContain('"\'+91 90000 00000"');
+    const cleared = { ...invited, rsvp: attendingRsvp };
+    expect(invitationRow(cleared).contactNumber).toBe("");
+    expect(buildCoordinatorCsv([cleared], issuerOptions)).not.toContain("90000");
+  });
   it("keeps provisional replies visible as Confirming instead of treating them as final responses", () => {
     expect(invitationRow(invitation()).state).toBe("Pending");
     expect(invitationRow(invitation({ rsvp: attendingRsvp })).state).toBe("Responded");

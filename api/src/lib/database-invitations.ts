@@ -1,8 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { z } from "zod";
+import type { PoolClient } from "pg";
 
-import { invitationTokenSchema } from "../domain/rsvp.js";
+import { contactNumberSchema, invitationTokenSchema } from "../domain/rsvp.js";
 import { requireWeddingSide } from "../domain/wedding-side.js";
 import {
   hasDatabaseEntryPassEligibility,
@@ -52,6 +53,7 @@ const INVITATION_ACCESS_GRACE_MILLISECONDS = 90 * 24 * 60 * 60 * 1_000;
 export const databaseInvitationIssueSchema = z.object({
   householdNameEn: optionalHouseholdNameSchema,
   householdNameHi: optionalHouseholdNameSchema,
+  contactNumber: contactNumberSchema.optional(),
   preferredLocale: z.enum(["en", "hi"]).default("en"),
   contactRole: z.enum(["groom", "bride"]).default("groom"),
   eventLimits: z.array(guestLimitSchema).min(1).max(12)
@@ -92,11 +94,12 @@ export const databaseInvitationRsvpDeleteSchema = z.object({
   invitationId: z.string().uuid()
 }).strict();
 
-type ParsedDatabaseInvitationIssue = z.output<typeof databaseInvitationIssueSchema>;
+export type ParsedDatabaseInvitationIssue = z.output<typeof databaseInvitationIssueSchema>;
 
 export type DatabaseInvitationIssue = {
   householdNameEn: string;
   householdNameHi: string;
+  contactNumber?: string;
   preferredLocale: "en" | "hi";
   contactRole: ContactRole;
   eventLimits: Array<{ eventId: string; adults: number; children: number }>;
@@ -111,6 +114,7 @@ type DatabaseInvitationRow = {
   side: WeddingSide;
   household_name_en: string;
   household_name_hi: string;
+  contact_number: string | null;
   preferred_locale: "en" | "hi";
   contact_role: ContactRole;
   status: DatabaseInvitationStatus;
@@ -138,6 +142,7 @@ type RsvpDeletionAuditRow = Pick<DatabaseInvitationForRsvpDeletionRow, "id" | "r
 
 type DatabaseCoordinatorRow = DatabaseInvitationRow & {
   rsvp_respondent_name: string | null;
+  rsvp_contact_number: string | null;
   rsvp_status: RSVPStatus | null;
   rsvp_attendances: unknown | null;
   rsvp_comfort_note: string | null;
@@ -190,6 +195,7 @@ const persistedEventLimitsSchema = z.record(z.string().min(1).max(100), z.object
 
 const coordinatorRsvpSchema = z.object({
   respondentName: z.string().trim().min(2).max(100),
+  contactNumber: contactNumberSchema.optional(),
   status: z.enum(["attending", "declined", "confirming"]),
   comfortNote: z.string().max(500).optional(),
   declineMessage: z.string().max(500).optional(),
@@ -249,6 +255,7 @@ function validateDatabaseInvitationIssueShape(value: ParsedDatabaseInvitationIss
     value: {
       householdNameEn: english || hindi,
       householdNameHi: hindi || english,
+      ...(value.contactNumber !== undefined ? { contactNumber: value.contactNumber } : {}),
       preferredLocale: value.preferredLocale,
       contactRole: value.contactRole,
       eventLimits: value.eventLimits.map((limit) => ({ ...limit }))
@@ -261,7 +268,7 @@ function validateDatabaseInvitationIssueShape(value: ParsedDatabaseInvitationIss
  * schedule. This makes stale/unknown event IDs fail closed even if a caller
  * bypasses the route handler.
  */
-function validateDatabaseInvitationIssueForConfiguration(
+export function validateDatabaseInvitationIssueForConfiguration(
   value: ParsedDatabaseInvitationIssue,
   configuration: DatabaseWeddingConfiguration
 ): DatabaseInvitationIssueValidation {
@@ -286,12 +293,13 @@ function readPersistedEventLimits(value: unknown) {
   return Object.entries(parsed.data).map(([eventId, limit]) => ({ eventId, ...limit }));
 }
 
-function rowToIssue(row: Pick<DatabaseInvitationRow, "household_name_en" | "household_name_hi" | "preferred_locale" | "contact_role" | "event_limits">) {
+function rowToIssue(row: Pick<DatabaseInvitationRow, "household_name_en" | "household_name_hi" | "contact_number" | "preferred_locale" | "contact_role" | "event_limits">) {
   const eventLimits = readPersistedEventLimits(row.event_limits);
   if (!eventLimits) return null;
   const parsed = databaseInvitationIssueSchema.safeParse({
     householdNameEn: row.household_name_en,
     householdNameHi: row.household_name_hi,
+    contactNumber: row.contact_number ?? undefined,
     preferredLocale: row.preferred_locale,
     contactRole: row.contact_role,
     eventLimits
@@ -311,7 +319,7 @@ function householdName(issue: DatabaseInvitationIssue): LocalizedText {
 }
 
 /** Ensure the requested reply-to person is configured in the wedding database. */
-function validateDatabaseInvitationContactRoleForConfiguration(contactRole: ContactRole, configuration: DatabaseWeddingConfiguration) {
+export function validateDatabaseInvitationContactRoleForConfiguration(contactRole: ContactRole, configuration: DatabaseWeddingConfiguration) {
   if (databaseWeddingContact(configuration, contactRole)) return { ok: true as const };
   return {
     ok: false as const,
@@ -340,75 +348,73 @@ export async function issueDatabaseInvitation(value: ParsedDatabaseInvitationIss
   requireWeddingSide(side);
   const client = await getDatabasePool().connect();
   let transactionOpen = false;
-
   try {
     await client.query("begin");
     transactionOpen = true;
-    await lockDatabaseContentAndInvitationIssue(client, side);
-
-    // Use the locked connection for all schedule reads. A pooled read here
-    // could exhaust the four-connection pool while other issuers wait on the
-    // advisory lock, and it could observe a different content transaction.
-    const configuration = await loadDatabaseWeddingConfiguration(client, side);
-    const validation = validateDatabaseInvitationIssueForConfiguration(value, configuration);
-    if (!validation.ok) throw new Error(validation.message);
-    const contactValidation = validateDatabaseInvitationContactRoleForConfiguration(validation.value.contactRole, configuration);
-    if (!contactValidation.ok) throw new Error(contactValidation.message);
-
-    const eventLimits = asInvitationEventLimits(validation.value);
-    const accessExpiresAt = invitationAccessExpiry(configuration);
-
-    // An ID or 256-bit token collision cannot abort this transaction; retry
-    // without ever replacing an existing invitation.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const token = randomBytes(32).toString("base64url");
-      const tokenHash = databaseInvitationTokenDigest(token);
-      const invitationId = randomUUID();
-      const { rows } = await client.query<IssuedDatabaseInvitationRow>(
-        `insert into wedding.invitations (
-           id, token_hash, household_name_en, household_name_hi, preferred_locale, contact_role, event_limits, access_expires_at, side
-         ) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
-         on conflict do nothing
-         returning id, created_at`,
-        [
-          invitationId,
-          tokenHash,
-          validation.value.householdNameEn,
-          validation.value.householdNameHi,
-          validation.value.preferredLocale,
-          validation.value.contactRole,
-          JSON.stringify(eventLimits),
-          accessExpiresAt,
-          side
-        ]
-      );
-      const row = rows[0];
-      if (!row) continue;
-      await client.query("commit");
-      transactionOpen = false;
-      return {
-        id: row.id,
-        side,
-        createdAt: normalizeTimestamp(row.created_at),
-        token,
-        householdName: householdName(validation.value),
-        eventCount: validation.value.eventLimits.length,
-        contactRole: validation.value.contactRole
-      };
-    }
-    throw new Error("Could not allocate a unique invitation.");
+    const issued = await issueDatabaseInvitationInTransaction(client, value, side);
+    await client.query("commit");
+    transactionOpen = false;
+    return issued;
   } catch (error) {
     if (transactionOpen) {
-      try {
-        await client.query("rollback");
-      } catch {
-        // Keep the original database error for the route's generic response.
-      }
+      try { await client.query("rollback"); } catch { /* Preserve the original error. */ }
     }
     throw error;
   } finally {
     client.release();
   }
+}
+
+/** Share an existing transaction for atomic bulk issuance and public registration. */
+export async function issueDatabaseInvitationInTransaction(
+  client: PoolClient,
+  value: ParsedDatabaseInvitationIssue,
+  side: WeddingSide = "groom",
+  configuration?: DatabaseWeddingConfiguration
+) {
+  requireWeddingSide(side);
+  await lockDatabaseContentAndInvitationIssue(client, side);
+
+  // The locked connection observes the same schedule throughout a bulk import.
+  const currentConfiguration = configuration ?? await loadDatabaseWeddingConfiguration(client, side);
+  const parsed = databaseInvitationIssueSchema.safeParse(value);
+  if (!parsed.success) throw new Error("The invitation payload is invalid.");
+  const validation = validateDatabaseInvitationIssueForConfiguration(parsed.data, currentConfiguration);
+  if (!validation.ok) throw new Error(validation.message);
+  const contactValidation = validateDatabaseInvitationContactRoleForConfiguration(validation.value.contactRole, currentConfiguration);
+  if (!contactValidation.ok) throw new Error(contactValidation.message);
+
+  const eventLimits = asInvitationEventLimits(validation.value);
+  const accessExpiresAt = invitationAccessExpiry(currentConfiguration);
+  // A collision never replaces an existing invitation or aborts the transaction.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const token = randomBytes(32).toString("base64url");
+    const tokenHash = databaseInvitationTokenDigest(token);
+    const invitationId = randomUUID();
+    const { rows } = await client.query<IssuedDatabaseInvitationRow>(
+      `insert into wedding.invitations (
+         id, token_hash, household_name_en, household_name_hi, preferred_locale, contact_role, event_limits, access_expires_at, side, contact_number
+       ) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+       on conflict do nothing
+       returning id, created_at`,
+      [invitationId, tokenHash, validation.value.householdNameEn, validation.value.householdNameHi,
+        validation.value.preferredLocale, validation.value.contactRole, JSON.stringify(eventLimits),
+        accessExpiresAt, side, validation.value.contactNumber || null]
+    );
+    const row = rows[0];
+    if (!row) continue;
+    return {
+      id: row.id,
+      side,
+      createdAt: normalizeTimestamp(row.created_at),
+      token,
+      householdName: householdName(validation.value),
+      ...(validation.value.contactNumber ? { contactNumber: validation.value.contactNumber } : {}),
+      eventCount: validation.value.eventLimits.length,
+      contactRole: validation.value.contactRole
+    };
+  }
+  throw new Error("Could not allocate a unique invitation.");
 }
 
 /**
@@ -799,7 +805,7 @@ export async function resolveDatabaseInvitation(token: string, expectedSide?: We
   if (expectedSide !== undefined) requireWeddingSide(expectedSide);
 
   const { rows } = await getDatabasePool().query<DatabaseInvitationRow>(
-    `select id, side, household_name_en, household_name_hi, preferred_locale, contact_role, event_limits, created_at
+    `select id, side, household_name_en, household_name_hi, preferred_locale, contact_role, contact_number, event_limits, created_at
        from wedding.invitations
       where token_hash = $1
         and ($2::text is null or side = $2)
@@ -838,6 +844,7 @@ export async function resolveDatabaseInvitation(token: string, expectedSide?: We
       token,
       side,
       householdName: householdName(validation.value),
+      ...(validation.value.contactNumber ? { contactNumber: validation.value.contactNumber } : {}),
       preferredLocale: validation.value.preferredLocale,
       eventIds: selectedEvents.map((event) => event.id),
       eventLimits: asInvitationEventLimits(validation.value),
@@ -865,12 +872,14 @@ export async function listDatabaseCoordinatorInvitations(side: WeddingSide = "gr
        invitations.household_name_hi,
        invitations.preferred_locale,
        invitations.contact_role,
+       invitations.contact_number,
        invitations.status,
        invitations.revoked_at,
        invitations.rsvp_deleted_at,
        invitations.event_limits,
        invitations.created_at,
        responses.respondent_name as rsvp_respondent_name,
+       responses.contact_number as rsvp_contact_number,
        responses.status as rsvp_status,
        responses.attendances as rsvp_attendances,
        responses.comfort_note as rsvp_comfort_note,
@@ -916,6 +925,7 @@ export async function listDatabaseCoordinatorInvitations(side: WeddingSide = "gr
     if (row.rsvp_status && row.rsvp_attendances && row.rsvp_updated_at) {
       const parsedRsvp = coordinatorRsvpSchema.safeParse({
         respondentName: row.rsvp_respondent_name,
+        contactNumber: row.rsvp_contact_number ?? undefined,
         status: row.rsvp_status,
         attendances: row.rsvp_attendances,
         comfortNote: row.rsvp_comfort_note ?? undefined,
@@ -924,6 +934,7 @@ export async function listDatabaseCoordinatorInvitations(side: WeddingSide = "gr
       if (!parsedRsvp.success) return [];
       rsvp = {
         respondentName: parsedRsvp.data.respondentName,
+        ...(parsedRsvp.data.contactNumber ? { contactNumber: parsedRsvp.data.contactNumber } : {}),
         status: parsedRsvp.data.status,
         attendances: parsedRsvp.data.attendances as AttendanceInput[],
         comfortNote: parsedRsvp.data.comfortNote,
@@ -950,6 +961,7 @@ export async function listDatabaseCoordinatorInvitations(side: WeddingSide = "gr
     return [{
       id: row.id,
       householdName: householdName(validation.value),
+      ...(validation.value.contactNumber ? { contactNumber: validation.value.contactNumber } : {}),
       preferredLocale: validation.value.preferredLocale,
       contactRole: validation.value.contactRole,
       status: row.status,

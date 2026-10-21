@@ -17,6 +17,7 @@ export type GuestRow = {
   id: string;
   invitationId: string;
   household: string;
+  contactNumber: string;
   group: string;
   events: number;
   adults: number;
@@ -74,6 +75,7 @@ export function invitationRow(invitation: CoordinatorInvitation): GuestRow {
     id: `invitation-${invitation.id}`,
     invitationId: invitation.id,
     household: invitation.householdName[invitation.preferredLocale],
+    contactNumber: invitation.rsvp ? invitation.rsvp.contactNumber ?? "" : invitation.contactNumber ?? "",
     group: `Invitation link · ${replyToLabel(invitation.contactRole)} · ${invitation.eventCount} invited event${invitation.eventCount === 1 ? "" : "s"}`,
     events: participating.length,
     adults,
@@ -152,7 +154,7 @@ export function sortCoordinatorRows(rows: GuestRow[], sort: SortOption) {
 }
 
 export function buildCoordinatorCsv(invitations: CoordinatorInvitation[], options: DatabaseInvitationIssuerOptions) {
-  const heading = ["Household", "Event", "RSVP state", "Event attendance", "Adults", "Children", "Respondent", "Hospitality requests", "Message for the couple", "Coordinator", "Coordinator phone", "Last update"];
+  const heading = ["Household", "Event", "RSVP state", "Event attendance", "Adults", "Children", "Respondent", "Hospitality requests", "Message for the couple", "Coordinator", "Coordinator phone", "Last update", "Guest contact number"];
   // Prefix spreadsheet formulas so database-provided text cannot execute when
   // the exported CSV is opened in Excel or Google Sheets.
   const quote = (value: string | number) => {
@@ -172,7 +174,8 @@ export function buildCoordinatorCsv(invitations: CoordinatorInvitation[], option
         attending ? attendance.adults : 0, attending ? attendance.children : 0, response?.respondentName ?? "",
         response?.status === "attending" ? response.comfortNote ?? "" : "",
         response?.status === "declined" ? response.declineMessage ?? "" : "",
-        coordinator?.name ?? "", coordinator?.phoneDisplay ?? "", response?.updatedAt ?? invitation.createdAt];
+        coordinator?.name ?? "", coordinator?.phoneDisplay ?? "", response?.updatedAt ?? invitation.createdAt,
+        response ? response.contactNumber ?? "" : invitation.contactNumber ?? ""];
     });
   });
   return [heading, ...rows]

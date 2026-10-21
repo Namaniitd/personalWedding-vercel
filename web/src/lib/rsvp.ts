@@ -4,9 +4,16 @@ import type { Invitation, RSVPInput, ResolvedInvitation } from "@/lib/types";
 
 export const invitationTokenSchema = z.string().min(16).max(128).regex(/^[A-Za-z0-9_-]+$/);
 
-export const rsvpSubmissionSchema = z.object({
-  token: invitationTokenSchema,
+/** Keep familiar phone formatting while rejecting incomplete or non-phone values. */
+export const contactNumberSchema = z.string().trim().max(40).refine((value) => {
+  if (!value) return true;
+  const digits = value.replace(/\D/g, "");
+  return /^\+?[\d ()-]+$/.test(value) && digits.length >= 7 && digits.length <= 15;
+}, { message: "Enter a contact number with 7 to 15 digits, including the country code if needed." });
+
+export const rsvpDetailsSchema = z.object({
   respondentName: z.string().trim().min(2).max(100),
+  contactNumber: contactNumberSchema.optional(),
   status: z.enum(["attending", "declined", "confirming"]),
   attendances: z
     .array(
@@ -19,8 +26,7 @@ export const rsvpSubmissionSchema = z.object({
     )
     .max(12),
   comfortNote: z.string().trim().max(500).optional(),
-  declineMessage: z.string().trim().max(500).optional(),
-  updatedAt: z.string().datetime().optional()
+  declineMessage: z.string().trim().max(500).optional()
 }).strict().superRefine((value, context) => {
   const seenEventIds = new Set<string>();
   value.attendances.forEach((attendance, index) => {
@@ -48,6 +54,11 @@ export const rsvpSubmissionSchema = z.object({
       path: ["declineMessage"]
     });
   }
+});
+
+export const rsvpSubmissionSchema = rsvpDetailsSchema.safeExtend({
+  token: invitationTokenSchema,
+  updatedAt: z.string().datetime().optional()
 });
 
 export type RSVPValidation =

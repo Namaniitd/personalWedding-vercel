@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { invitationPath } from "@/lib/wedding-side";
-import { invitationTokenSchema } from "@/lib/rsvp";
+import { browserIssuedInvitation, issuedInvitationSchema } from "@/lib/server/issued-invitation";
 import { backendCoordinatorAvailability, forwardBackendJson, requestBackend } from "@/lib/server/backend-client";
 import { privateEmpty, privateJson } from "@/lib/server/private-response";
 import { takeRateLimit } from "@/lib/server/rate-limit";
@@ -21,15 +20,7 @@ export const dynamic = "force-dynamic";
 const COORDINATOR_INVITATION_BODY_LIMIT_BYTES = 8 * 1024;
 const issuedResponseSchema = z.object({
   ok: z.literal(true),
-  issued: z.object({
-    id: z.string().uuid(),
-    token: invitationTokenSchema,
-    createdAt: z.string().datetime(),
-    householdName: z.object({ en: z.string(), hi: z.string() }).strict(),
-    eventCount: z.number().int().min(1).max(12),
-    contactRole: z.enum(["groom", "bride"]),
-    side: z.enum(["groom", "bride"]).optional()
-  }).strict()
+  issued: issuedInvitationSchema
 }).strict();
 
 async function databaseCoordinatorIsAvailable(request?: NextRequest) {
@@ -106,16 +97,9 @@ export async function POST(request: NextRequest) {
     // A production request can arrive from an internal ALB/container origin.
     // Public links must use the independently validated canonical origin.
     const side = coordinatorRequestSide(request);
-    if ((issued.side ?? "groom") !== side) throw new Error("Invalid invitation owner.");
-    const invitationUrl = new URL(invitationPath(side, issued.token), invitationOrigin).toString();
     return privateJson({
       ok: true,
-      invitationId: issued.id,
-      createdAt: issued.createdAt,
-      invitationUrl,
-      householdName: issued.householdName,
-      eventCount: issued.eventCount,
-      contactRole: issued.contactRole
+      ...browserIssuedInvitation(issued, side, invitationOrigin)
     });
   } catch {
     return privateJson({ error: "The invitation service is temporarily unavailable." }, 503);
