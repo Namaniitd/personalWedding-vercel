@@ -11,6 +11,18 @@ allowlist and rate limits, and retain no-store headers. Anyone can view these
 assets while the public invitation is available; private guest responses and
 personal links are never included.
 
+Background music uses `music/raabta-instrumental.m4a`, an excerpt of the
+[Raabta instrumental cover by Havana The Band / Sound Spirit](https://www.youtube.com/watch?v=Fa8AXcfLXs4).
+The downloaded recording is exported as stereo 48 kHz AAC at 128 kbit/s with
+source metadata removed and MP4 fast-start metadata. The first 8 seconds are
+removed without re-encoding; the 3:31 file is about 3.3 MiB, below the 4 MiB
+full-response limit. Audio supports the same invitation
+checks, private headers and bounded byte ranges as the teaser. Sound is enabled
+by default and begins with the opening gesture. Direct section links attempt
+autoplay with a Play music fallback when the browser requires a tap. It loops
+quietly and pauses for the teaser or a hidden tab. Both media-route bundles
+explicitly include this file.
+
 The invitation's optional teaser uses `teaser/prewedding-teaser-hd.mp4`,
 `teaser/prewedding-teaser-4k.mp4`, and `prewedding-teaser-poster.webp`. Only the
 poster loads before a guest chooses to play. The player then picks 4K only for
@@ -42,11 +54,21 @@ The poster is a 1920×1080 lossy WebP (about 70 KB), exported from
 The masters and poster source are excluded from git, Vercel uploads, the
 container, and the server bundle; only the web copies are allowlisted.
 
-The invitation hero loops through `engagementCouplePic.jpg`, `engagement-2.jpg`,
-and `engagement-3.jpg`. Their 640px and 1067px WebP variants let phones request
-smaller images while retaining detail on larger screens. New variants strip
-source metadata and stay under the same invitation gate. Never capture real
-personal photographs, invitation links, or entry credentials in test artifacts.
+The invitation hero opens with three pre-wedding portraits: the lakeside,
+palace arch, and Hawa Mahal photographs in `prewedding/`. Their 640px and 1066px
+WebP exports preserve the original framing and remove source metadata. The
+three existing engagement photographs follow them in the same slideshow, with
+their 640px and 1067px variants retained.
+
+Three landscape photographs from the same pre-wedding shoot appear in the
+scrolling celebration chapters; the wide lakeside image also appears behind
+the hero and travel sections. Their 960px and 1600px WebP copies let phones
+request smaller files. The burgundy and ivory overlays keep text readable.
+Only optimized exports are copied into this folder; the source photos remain
+in the owner's Pictures directory. Every export uses the same invitation
+gate, allowlist, no-store headers, and output tracing as the existing images.
+Never capture real personal photographs, invitation links, or entry
+credentials in test artifacts.
 
 Next.js output tracing includes the image assets and optimized teaser in
 the invitation media routes' server bundles. The image optimizer permits only the generic public share image;

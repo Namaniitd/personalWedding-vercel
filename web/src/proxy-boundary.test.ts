@@ -56,6 +56,18 @@ describe("private page proxy", () => {
     expect(api.headers.get("www-authenticate")).toBeNull();
   });
 
+  it("keeps invitation music on the same origin and prohibits embedded frames on all pages", async () => {
+    for (const path of ["/i/synthetic-invitation", "/i/b/synthetic-invitation", "/rsvp/g", "/rsvp/b", "/", "/coordinator/g/login", "/api/coordinator/content"]) {
+      const response = await proxy(new NextRequest(`http://localhost${path}`));
+      const csp = response.headers.get("content-security-policy") ?? "";
+      expect(csp.split("; ").find((directive) => directive.startsWith("frame-src "))).toBe("frame-src 'none'");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(csp).toContain("connect-src 'self'");
+      expect(csp).toContain("media-src 'self'");
+      expect(csp).not.toContain("youtube");
+    }
+  });
+
   it("allows a valid signed session and does not expose disabled coordinator APIs", async () => {
     const session = createCoordinatorSession();
     if (!session) throw new Error("Expected a signed test session.");

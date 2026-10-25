@@ -100,3 +100,18 @@ describe("coordinator invitation lead validation", () => {
     }
   });
 });
+
+describe("coordinator parents validation", () => {
+  it("accepts optional parents through the existing content save contract", () => {
+    const input = snapshot();
+    const parents = { groom: { en: "Groom's family", hi: "वर का परिवार" } };
+    const guestContent = { hero: { parents } };
+    expect(databaseWeddingContentEditorSchema.parse({ ...input, settings: { ...input.settings, guestContent } }).settings.guestContent).toEqual(guestContent);
+  });
+
+  it("rejects a save with incomplete parents translations", () => {
+    const input = snapshot();
+    const guestContent = { hero: { parents: { bride: { en: "Bride's family" } } } };
+    expect(databaseWeddingContentEditorSchema.safeParse({ ...input, settings: { ...input.settings, guestContent } }).success).toBe(false);
+  });
+});

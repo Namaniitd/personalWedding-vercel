@@ -4,16 +4,22 @@
 
 import { useEffect, useState } from "react";
 
+import { CoupleNames, splitCoupleNames } from "@/components/couple-names";
 import { EventDetailsDialog } from "@/components/event-details-dialog";
 import { InvitationPhotoCarousel } from "@/components/invitation-photo-carousel";
 import { InvitationTeaser } from "@/components/invitation-teaser";
 import { RSVPForm } from "@/components/rsvp-form";
+import { HeroOrnaments } from "@/components/motion-ornaments";
+import { ScrollScenery } from "@/components/scroll-scenery";
+import { ScrollStory } from "@/components/scroll-story";
 import { WeddingCountdown } from "@/components/wedding-countdown";
+import { WeddingExperience } from "@/components/wedding-experience";
 import { DEFAULT_INVITATION_LEAD } from "@/lib/invitation-introduction";
 import { invitationMediaUrl } from "@/lib/invitation-media";
 import type { Locale, ResolvedInvitation, WeddingArtworkKey, WeddingEvent, WeddingGuestContent, WeddingSide } from "@/lib/types";
 
 import styles from "./wedding-invite.module.css";
+import experienceStyles from "./wedding-experience.module.css";
 
 type InviteCopy = {
   skip: string;
@@ -199,16 +205,6 @@ function Icon({ name, size = 19 }: { name: IconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{content[name]}</svg>;
 }
 
-function CoupleNames({ names, locale }: { names: string; locale: Locale }) {
-  const separator = locale === "hi" ? /\s+(?:एवं|और)\s+|\s*&\s*/u : /\s*&\s*|\s+and\s+/iu;
-  const match = separator.exec(names);
-  if (!match) return <>{names}</>;
-  const firstName = names.slice(0, match.index).trim();
-  const secondName = names.slice(match.index + match[0].length).trim();
-  if (!firstName || !secondName) return <>{names}</>;
-  return <><span>{firstName}</span><em>{match[0].trim()}</em><span>{secondName}</span></>;
-}
-
 function CalendarDownload({ event, locale, token, labels, publicSide }: { event: WeddingEvent; locale: Locale; token: string; labels: InviteCopy; publicSide?: WeddingSide }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -250,7 +246,7 @@ function CalendarDownload({ event, locale, token, labels, publicSide }: { event:
 
 function EventCard({ event, index, locale, token, labels, publicSide }: { event: WeddingEvent; index: number; locale: Locale; token: string; labels: InviteCopy; publicSide?: WeddingSide }) {
   return (
-    <article className={styles.eventCard}>
+    <article className={styles.eventCard} data-reveal="event">
       <div className={styles.eventDate}>
         <span className={styles.eventNumber}>{String(index + 1).padStart(2, "0")}</span>
         <strong>{event.date[locale]}</strong>
@@ -281,8 +277,9 @@ function Blessings({ blessings, locale, labels, token }: { blessings: WeddingGue
   if (!blessings) return null;
 
   return (
-    <section className={styles.blessings} aria-labelledby="blessings-title">
-      <div className={styles.sectionIntro}>
+    <section className={`${styles.blessings} ${experienceStyles["scene-surface"]}`} data-scroll-scene aria-labelledby="blessings-title">
+      <ScrollScenery token={token} />
+      <div className={styles.sectionIntro} data-reveal="section">
         {blessings.invocation && <p className={styles.invocation} lang="sa">{blessings.invocation}</p>}
         <p className={styles.eyebrow}>{blessings.kicker?.[locale] ?? labels.blessingFallback}</p>
         <h2 id="blessings-title">{blessings.title[locale]}</h2>
@@ -291,7 +288,7 @@ function Blessings({ blessings, locale, labels, token }: { blessings: WeddingGue
       <div className={styles.blessingGrid}>
         {blessings.cards.map((card, index) => {
           const image = artwork[card.artworkKey];
-          return <article className={styles.blessingCard} key={`${card.artworkKey}-${index}`}>
+          return <article className={styles.blessingCard} data-reveal="card" key={`${card.artworkKey}-${index}`}>
             <figure>
               <img src={invitationMediaUrl(token, image.src)} alt={card.artworkAlt[locale]} width={image.width} height={image.height} loading="lazy" decoding="async" />
               <figcaption>{card.label[locale]}</figcaption>
@@ -323,8 +320,8 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
   const travel = wedding.guestContent?.travel;
   const hero = wedding.guestContent?.hero;
   const heroArtwork = hero?.artworkKey ? artwork[hero.artworkKey] : null;
-  const coupleNames = wedding.couple.en.split(" & ");
-  const initials = `${coupleNames[0]?.trim().charAt(0) ?? "W"}${coupleNames[1]?.trim().charAt(0) ?? "I"}`;
+  const coupleNames = splitCoupleNames(wedding.couple.en, "en");
+  const initials = coupleNames ? `${coupleNames.groom[0]}${coupleNames.bride[0]}` : wedding.couple.en.charAt(0);
 
   useEffect(() => {
     const previousLanguage = document.documentElement.lang;
@@ -333,9 +330,10 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
   }, [locale]);
 
   return (
+    <WeddingExperience wedding={wedding} invitationToken={invitation.token} locale={locale} mediaPlaying={teaserPlaying}>{(motionPaused) => (
     <main className={`invite-page ${styles.page}`} lang={locale}>
       <a className={styles.skipLink} href="#invitation">{labels.skip}</a>
-      <header className={styles.header} id="top">
+      <header className={styles.header} id="top" data-invitation-header>
         <a href="#top" className={styles.brand} aria-label={`${wedding.couple[locale]} · ${labels.brand}`}><span className={styles.monogram} aria-hidden="true">{initials.split("").join("&")}</span><span>{labels.brand}<small lang="hi">शुभ विवाह</small></span></a>
         <nav className={styles.headerNav} aria-label={locale === "hi" ? "मुख्य नेविगेशन" : "Main navigation"}>
           <a href="#schedule">{labels.schedule}</a>
@@ -351,16 +349,19 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
         <span aria-hidden="true">✦</span><strong>{labels.announcement}</strong><p>{wedding.announcement[locale]}</p>
       </aside>}
 
-      <section className={styles.hero} id="invitation" aria-labelledby="invitation-title">
+      <section className={`${styles.hero} ${experienceStyles["invitation-hero"]}`} id="invitation" data-scroll-scene aria-labelledby="invitation-title">
+        <ScrollScenery variant="palace" token={invitation.token} />
+        <HeroOrnaments />
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
-            <div className={styles.heroIntro}>
+            <div className={`${styles.heroIntro} ${experienceStyles["invitation-hero-intro"]} ${experienceStyles["scene-hero-copy"]}`}>
               <p className={styles.invocation} lang="sa">{hero?.invocation ?? "॥ श्री गणेशाय नमः ॥"}</p>
               <p className={styles.eyebrow}>{labels.privateInvitation}</p>
               <p className={styles.heroLead}>{hero?.invitationLead?.[locale] ?? labels.invitationLead}</p>
-              <h1 id="invitation-title" aria-label={wedding.couple[locale]}><CoupleNames names={wedding.couple[locale]} locale={locale} /></h1>
+              <h1 id="invitation-title" tabIndex={-1}><CoupleNames names={wedding.couple[locale]} locale={locale} parents={hero?.parents} /></h1>
               <p className={styles.heroBlessing}>{labels.blessing}</p>
               {hero?.region && <p className={styles.heroRegion}>{hero.region[locale]}</p>}
+              <a className={experienceStyles["hero-scroll-cue"]} href={events.length ? "#celebration-story" : "#schedule"}><span aria-hidden="true">↓</span>{locale === "hi" ? "आगे बढ़ें, यादें बनाएँ" : "Scroll to unfold our celebration"}</a>
             </div>
             <div className={styles.heroDetails}>
               <div className={styles.heroFacts}>
@@ -379,13 +380,13 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
               </div>
             </div>
           </div>
-          <div className={styles.heroPhoto}>
-            <InvitationPhotoCarousel token={invitation.token} locale={locale} alt={labels.heroPhotoAlt} paused={teaserPlaying} />
+          <div className={`${styles.heroPhoto} ${experienceStyles["invitation-hero-photo"]}`}>
+            <InvitationPhotoCarousel token={invitation.token} locale={locale} alt={labels.heroPhotoAlt} paused={teaserPlaying || motionPaused} />
           </div>
         </div>
       </section>
 
-      <aside className={styles.inviteeBand} aria-label={`${labels.forHousehold} ${invitation.householdName[locale]}`}>
+      <aside className={styles.inviteeBand} data-reveal="section" aria-label={`${labels.forHousehold} ${invitation.householdName[locale]}`}>
         <div className={styles.inviteeInner}>
           {heroArtwork && <div className={styles.heroArtwork}><img src={invitationMediaUrl(invitation.token, heroArtwork.src)} alt={hero?.artworkAlt?.[locale] ?? ""} width={heroArtwork.width} height={heroArtwork.height} loading="lazy" decoding="async" /></div>}
           <div className={styles.inviteeCopy}>
@@ -400,18 +401,21 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
         </div>
       </aside>
 
+      <ScrollStory locale={locale} couple={wedding.couple} events={events} token={invitation.token} />
+
       <InvitationTeaser token={invitation.token} locale={locale} onPlayingChange={setTeaserPlaying} />
 
       {wedding.guestContent?.update && <section className={styles.update} aria-labelledby="update-title"><span className={styles.updateMark} aria-hidden="true">!</span><div><p className={styles.eyebrow}>{labels.update}</p><h2 id="update-title">{wedding.guestContent.update.title[locale]}</h2><p>{wedding.guestContent.update.body[locale]}</p></div></section>}
 
-      <section className={styles.schedule} id="schedule" aria-labelledby="schedule-title">
-        <div className={styles.scheduleIntro}>
+      <section className={`${styles.schedule} ${experienceStyles["scene-surface"]} ${experienceStyles["scene-schedule"]}`} id="schedule" data-scroll-scene aria-labelledby="schedule-title">
+        <ScrollScenery variant="floral" token={invitation.token} />
+        <div className={styles.scheduleIntro} data-reveal="section">
           <div className={styles.sectionIntro}>
             <p className={styles.eyebrow}>{labels.scheduleEyebrow}</p>
             <h2 id="schedule-title">{labels.scheduleTitle}</h2>
             <p>{labels.scheduleLead}</p>
           </div>
-          <div className={styles.schedulePhoto}>
+          <div className={`${styles.schedulePhoto} ${experienceStyles["scene-detail-photo"]}`}>
             <picture>
               <source type="image/webp" srcSet={`${invitationMediaUrl(invitation.token, "wedding-mehendi-960.webp")} 960w, ${invitationMediaUrl(invitation.token, "wedding-mehendi-1440.webp")} 1440w`} sizes="(max-width: 760px) 100vw, 420px" />
               <img src={invitationMediaUrl(invitation.token, "wedding-mehendi.jpg")} alt={labels.detailPhotoAlt} width={1920} height={1277} loading="lazy" decoding="async" />
@@ -423,26 +427,28 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
         </div>
       </section>
 
-      <section className={styles.rsvpSection} id="rsvp" aria-label={labels.rsvp}>
-        <div className="rsvp-card-shell">
+      <section className={`${styles.rsvpSection} ${experienceStyles["scene-surface"]} ${experienceStyles["scene-rsvp"]}`} id="rsvp" data-scroll-scene aria-label={labels.rsvp}>
+        <ScrollScenery token={invitation.token} />
+        <div className="rsvp-card-shell" data-reveal="section">
           <RSVPForm invitation={invitation} events={events} coupleName={wedding.couple[locale]} locale={locale} initialResponse={rsvp} initialEntryPass={entryPass ?? null} />
         </div>
       </section>
 
-      {travel && <section className={styles.travel} id="travel" aria-labelledby="travel-title">
-        <div className={styles.sectionIntro}>
+      {travel && <section className={`${styles.travel} ${experienceStyles["scene-surface"]} ${experienceStyles["scene-travel"]}`} id="travel" data-scroll-scene aria-labelledby="travel-title">
+        <ScrollScenery variant="palace" token={invitation.token} />
+        <div className={styles.sectionIntro} data-reveal="section">
           <p className={styles.eyebrow}>{travel.eyebrow?.[locale] ?? labels.travelFallback}</p>
           <h2 id="travel-title">{travel.title[locale]}</h2>
           {travel.lead && <p>{travel.lead[locale]}</p>}
         </div>
         <div className={styles.travelGrid}>
-          {travel.cards.map((card, index) => <article key={`${card.icon}-${index}`}><span className={styles.travelIcon}><Icon name={card.icon} /></span><h3>{card.title[locale]}</h3><p>{card.body[locale]}</p></article>)}
+          {travel.cards.map((card, index) => <article data-reveal="card" key={`${card.icon}-${index}`}><span className={styles.travelIcon}><Icon name={card.icon} /></span><h3>{card.title[locale]}</h3><p>{card.body[locale]}</p></article>)}
         </div>
       </section>}
 
       <Blessings blessings={wedding.guestContent?.blessings} locale={locale} labels={labels} token={invitation.token} />
 
-      <section className={styles.helpSection} id="help" aria-labelledby="help-title">
+      <section className={styles.helpSection} id="help" data-reveal="section" aria-labelledby="help-title">
         <div>
           <p className={styles.eyebrow}>{labels.helpEyebrow}</p>
           <h2 id="help-title">{travel?.help?.title[locale] ?? labels.helpTitle}</h2>
@@ -466,5 +472,6 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
         <a href="#help"><Icon name="phone" size={18} /><span>{labels.help}</span></a>
       </nav>
     </main>
+    )}</WeddingExperience>
   );
 }

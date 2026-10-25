@@ -243,11 +243,31 @@ function canEditInvitationIntroduction(value: unknown) {
     && (lead.hi === undefined || typeof lead.hi === "string"));
 }
 
+function parentNames(value: unknown, side: WeddingSide): LocalizedText {
+  const hero = isContentObject(value) && isContentObject(value.hero) ? value.hero : null;
+  const parents = hero && isContentObject(hero.parents) ? hero.parents : null;
+  const names = parents && isContentObject(parents[side]) ? parents[side] : null;
+  return { en: typeof names?.en === "string" ? names.en : "", hi: typeof names?.hi === "string" ? names.hi : "" };
+}
+
+function canEditParents(value: unknown) {
+  if (!isContentObject(value) || value.hero === undefined) return true;
+  if (!isContentObject(value.hero)) return false;
+  const parents = value.hero.parents;
+  if (parents === undefined) return true;
+  return isContentObject(parents) && (["groom", "bride"] as const).every((side) => {
+    const names = parents[side];
+    return names === undefined || (isContentObject(names)
+      && (names.en === undefined || typeof names.en === "string")
+      && (names.hi === undefined || typeof names.hi === "string"));
+  });
+}
+
 function hasAdvancedGuestContent(value: unknown) {
   if (!isContentObject(value)) return Boolean(value);
   if (Object.keys(value).some((key) => key !== "hero")) return true;
   return isContentObject(value.hero)
-    ? Object.keys(value.hero).some((key) => key !== "invitationLead")
+    ? Object.keys(value.hero).some((key) => key !== "invitationLead" && key !== "parents")
     : value.hero !== undefined;
 }
 
@@ -271,6 +291,12 @@ function validateSnapshot(snapshot: CoordinatorContentSnapshot): string | null {
   const introduction = invitationIntroduction(settings.guestContent);
   if (!introduction.en.trim() || !introduction.hi.trim()) {
     return "Write the invitation introduction in both English and Hindi, or use the default wording.";
+  }
+  for (const side of ["groom", "bride"] as const) {
+    const names = parentNames(settings.guestContent, side);
+    if (Boolean(names.en.trim()) !== Boolean(names.hi.trim())) {
+      return `Write the ${side}'s parents' names in both English and Hindi, or clear both fields.`;
+    }
   }
   if (!validIndianMobile(settings.coordinatorPhone)) {
     return "The coordinator fallback needs a valid Indian mobile number.";
@@ -418,6 +444,24 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
   const guestContentObject = "value" in parsedGuestContentDraft && isContentObject(parsedGuestContentDraft.value) ? parsedGuestContentDraft.value : {};
   const introduction = invitationIntroduction(guestContentObject);
   const introductionEditable = !("error" in parsedGuestContentDraft) && canEditInvitationIntroduction(guestContentObject);
+  const parentsEditable = !("error" in parsedGuestContentDraft) && canEditParents(guestContentObject);
+
+  function updateParents(side: WeddingSide, locale: Locale, value: string) {
+    if (!parentsEditable) return;
+    const content = { ...guestContentObject };
+    const hero = isContentObject(content.hero) ? { ...content.hero } : {};
+    const parents = isContentObject(hero.parents) ? { ...hero.parents } : {};
+    const currentNames = isContentObject(parents[side]) ? parents[side] : {};
+    const names = { ...currentNames, ...parentNames(content, side), [locale]: value };
+    if (!names.en.trim() && !names.hi.trim()) delete parents[side];
+    else parents[side] = names;
+    if (Object.keys(parents).length) hero.parents = parents;
+    else delete hero.parents;
+    if (Object.keys(hero).length) content.hero = hero;
+    else delete content.hero;
+    setGuestContentDraft(Object.keys(content).length ? guestContentText(content) : "");
+    setNotice("");
+  }
 
   function updateIntroduction(locale: Locale, value: string) {
     if (!introductionEditable) return;
@@ -701,6 +745,22 @@ export function CoordinatorContentEditor({ initialContent }: { initialContent: C
             </fieldset>
 
             <fieldset className={styles.fieldset}>
+              <legend>Parents’ names</legend>
+              <p className={styles.fieldsetCopy}>Optional names shown beneath the groom and bride on the invitation. Fill both languages for each family, or leave that family blank.</p>
+              {!parentsEditable && <p className={styles.fieldsetCopy}>Fix the parents or hero in the advanced JSON editor below before editing these fields.</p>}
+              <div className={styles.bilingualGrid}>
+                {(["groom", "bride"] as const).flatMap((side) => {
+                  const names = parentNames(guestContentObject, side);
+                  const label = side === "groom" ? "Groom’s parents" : "Bride’s parents";
+                  return [
+                    <InputField key={`${side}-en`} label={label} language="English" value={names.en} onChange={(value) => updateParents(side, "en", value)} maxLength={240} disabled={!parentsEditable} />,
+                    <InputField key={`${side}-hi`} label={label} language="हिन्दी" lang="hi" value={names.hi} onChange={(value) => updateParents(side, "hi", value)} maxLength={240} disabled={!parentsEditable} />
+                  ];
+                })}
+              </div>
+            </fieldset>
+
+            <fieldset className={styles.fieldset}>
               <legend className={styles.toggleLegend}>
                 <span>Invitation introduction</span>
                 <button type="button" className={styles.textButton} disabled={!introductionEditable} onClick={resetIntroduction}>Use default wording</button>
@@ -934,7 +994,8 @@ function InputField({
   lang,
   maxLength,
   inputMode,
-  required = false
+  required = false,
+  disabled = false
 }: {
   label: string;
   language?: string;
@@ -945,12 +1006,13 @@ function InputField({
   maxLength: number;
   inputMode?: "tel" | "text";
   required?: boolean;
+  disabled?: boolean;
 }) {
   const id = useId();
   return (
     <label className={styles.field} htmlFor={id}>
       <span>{label}{language ? <small>{language}</small> : null}</span>
-      <input id={id} lang={lang} value={value} onChange={(event) => onChange(event.target.value)} maxLength={maxLength} inputMode={inputMode} required={required} />
+      <input id={id} lang={lang} value={value} onChange={(event) => onChange(event.target.value)} maxLength={maxLength} inputMode={inputMode} required={required} disabled={disabled} />
       {helper ? <em>{helper}</em> : null}
     </label>
   );

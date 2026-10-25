@@ -34,9 +34,38 @@ while that invitation is active and unexpired; public RSVP pages use separate
 routes that check the team's public invitation configuration. Those responses are not cached,
 and the Next.js image optimizer cannot fetch them. The generic share preview
 and attribution documents remain public. The hero uses responsive WebP variants
-for its three looping portraits, pauses while the tab is hidden, and starts
+for its six pre-wedding and engagement portraits, pauses while the tab is hidden, and starts
 paused for reduced motion. Event names open accessible dialogs containing
 that event's optional description, custom plain-text fields, and visit details.
+
+Guest invitations use the version 2 ceremonial entrance, scroll scenery, and
+photo story in the existing burgundy, gold, and ivory palette. Story chapters
+come only from that invitation's resolved events. Guests can pause motion;
+reduced-motion settings show every chapter without pinning or animation.
+Links directly to a section skip the opening cover, and invitation details
+remain readable without JavaScript. The existing teaser and RSVP flows stay
+connected to their original media and API routes.
+
+The Sound control plays the selected [Raabta instrumental cover](https://www.youtube.com/watch?v=Fa8AXcfLXs4)
+by Havana The Band / Sound Spirit from a local AAC recording at
+`private-media/music/raabta-instrumental.m4a` (3:31 with the first 8 seconds removed,
+about 3.3 MiB).
+Sound is enabled by default and starts with the Open your invitation gesture.
+Direct section links also attempt playback; if the browser blocks autoplay,
+guests can use Play music. It loops at 35% volume and pauses for the teaser or
+when the tab is hidden. Turning sound off stops playback and
+releases the audio source. A Play music / Retry button handles browser playback
+restrictions or network errors. The compact panel collapses during playback so
+it does not cover invitation or RSVP content. Audio uses the existing invitation media gate,
+private headers and bounded byte ranges; no YouTube embed or third-party
+request is needed to listen. The recording's source is credited in the player.
+
+**Content → Wedding details → Parents’ names** optionally adds bilingual names
+beneath either partner, on both the opening cover and the invitation. These
+are stored as `guestContent.hero.parents.groom` and `.bride`, each containing
+`en` and `hi` text (up to 240 characters per language). Blank families are
+omitted. Existing content requires no migration; update the API alongside the
+frontend before saving this new optional content.
 
 The frontend owns coordinator sign-in, signed HTTP-only sessions, same-origin checks, rate limits, CSP, private response headers, and the one-time link presentation. A newly issued invitation can be privately shared or copied with bilingual message text. The raw link cannot be recovered after dismissal. The private API owns invitation and RSVP data, content, and check-in decisions; see [`api/README.md`](../api/README.md).
 

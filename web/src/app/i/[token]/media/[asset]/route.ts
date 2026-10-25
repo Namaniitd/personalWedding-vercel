@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 type MediaContext = { params: Promise<{ token: string; asset: string }> };
 
 /** Read only the selected bytes, and close the same file on completion/cancel. */
-function videoStream(file: FileHandle, start: number, end: number) {
+function mediaStream(file: FileHandle, start: number, end: number) {
   let position = start;
   let closed = false;
   async function close() {
@@ -29,7 +29,7 @@ function videoStream(file: FileHandle, start: number, end: number) {
       try {
         const buffer = new Uint8Array(Math.min(64 * 1024, end - position + 1));
         const { bytesRead } = await file.read(buffer, 0, buffer.length, position);
-        if (!bytesRead) throw new Error("The private video ended before its declared length.");
+        if (!bytesRead) throw new Error("The private media ended before its declared length.");
         position += bytesRead;
         controller.enqueue(buffer.subarray(0, bytesRead));
         if (position > end) {
@@ -61,22 +61,23 @@ async function mediaResponse(request: NextRequest, { params }: MediaContext, hea
   try {
     const relativePath = privateMediaFiles[asset as keyof typeof privateMediaFiles];
     const path = join(process.cwd(), "private-media", relativePath);
-    const isVideo = asset.endsWith(".mp4");
-    const contentType = isVideo ? "video/mp4" : asset.endsWith(".webp") ? "image/webp" : "image/jpeg";
+    const isAudio = asset.endsWith(".m4a");
+    const isStreaming = isAudio || asset.endsWith(".mp4");
+    const contentType = isAudio ? "audio/mp4" : isStreaming ? "video/mp4" : asset.endsWith(".webp") ? "image/webp" : "image/jpeg";
 
     // Range applies only to GET. HEAD inspects metadata without opening or
-    // reading the media body, including for large video replacements.
+    // reading the media body, including for audio and large video replacements.
     if (head) {
       const metadata = await stat(path);
-      if (!metadata.isFile() || !Number.isSafeInteger(metadata.size) || metadata.size < 0 || (isVideo && metadata.size === 0)) {
+      if (!metadata.isFile() || !Number.isSafeInteger(metadata.size) || metadata.size < 0 || (isStreaming && metadata.size === 0)) {
         return privateText("This media is temporarily unavailable.", 503);
       }
       return privateBinary(null, contentType, 200, {
         "Content-Length": String(metadata.size),
-        ...(isVideo ? { "Accept-Ranges": "bytes" } : {})
+        ...(isStreaming ? { "Accept-Ranges": "bytes" } : {})
       });
     }
-    if (!isVideo) {
+    if (!isStreaming) {
       const bytes = await readFile(path);
       return privateBinary(new Uint8Array(bytes).buffer, contentType, 200, { "Content-Length": String(bytes.length) });
     }
@@ -98,7 +99,7 @@ async function mediaResponse(request: NextRequest, { params }: MediaContext, hea
           "Content-Length": "0"
         });
       }
-      // Export replacement teasers below 4MiB so clients that request a full
+      // Export replacement recordings below 4MiB so clients that request a full
       // GET stay below Vercel's response limit. Larger files still support
       // bounded ranges; never disguise a truncated full file as a 200 response.
       if (!range && metadata.size > MAX_PRIVATE_VIDEO_FULL_BYTES) {
@@ -106,7 +107,7 @@ async function mediaResponse(request: NextRequest, { params }: MediaContext, hea
       }
       const start = range?.start ?? 0;
       const end = range?.end ?? metadata.size - 1;
-      const stream = videoStream(file, start, end);
+      const stream = mediaStream(file, start, end);
       file = null; // The stream now owns closing this file, including on cancel.
       return privateBinary(stream, contentType, range ? 206 : 200, {
         "Accept-Ranges": "bytes",

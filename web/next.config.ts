@@ -41,8 +41,8 @@ const nextConfig: NextConfig = {
   // Produces the minimal Node server used by the ECS/Fargate Docker image.
   output: "standalone",
   outputFileTracingIncludes: {
-    "/i/*/media/*": ["./private-media/**/*.jpg", "./private-media/**/*.webp", "./private-media/teaser/prewedding-teaser-hd.mp4", "./private-media/teaser/prewedding-teaser-4k.mp4"],
-    "/rsvp/*/media/*": ["./private-media/**/*.jpg", "./private-media/**/*.webp", "./private-media/teaser/prewedding-teaser-hd.mp4", "./private-media/teaser/prewedding-teaser-4k.mp4"]
+    "/i/*/media/*": ["./private-media/**/*.jpg", "./private-media/**/*.webp", "./private-media/music/raabta-instrumental.m4a", "./private-media/teaser/prewedding-teaser-hd.mp4", "./private-media/teaser/prewedding-teaser-4k.mp4"],
+    "/rsvp/*/media/*": ["./private-media/**/*.jpg", "./private-media/**/*.webp", "./private-media/music/raabta-instrumental.m4a", "./private-media/teaser/prewedding-teaser-hd.mp4", "./private-media/teaser/prewedding-teaser-4k.mp4"]
   },
   outputFileTracingExcludes: {
     "/i/*/media/*": ["./private-media/teaser/comingSoon*.mp4", "./private-media/teaser/*-source.*", "./private-media/**/.DS_Store"],

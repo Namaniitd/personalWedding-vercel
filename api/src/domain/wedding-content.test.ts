@@ -139,6 +139,33 @@ describe("database wedding content mapping", () => {
     }
   });
 
+  it("maps optional bilingual parents without requiring either family on older invitations", () => {
+    const parents = {
+      groom: { en: "  Groom's family  ", hi: "  वर का परिवार  " },
+      bride: { en: "Bride's family", hi: "वधू का परिवार" }
+    };
+    const expected = { groom: { en: "Groom's family", hi: "वर का परिवार" }, bride: parents.bride };
+    const content = { hero: { parents } };
+    expect(parseWeddingGuestContent(content)?.hero?.parents).toEqual(expected);
+    expect(mapWeddingSettings({ ...settingsRow, guest_content: content })?.guestContent?.hero?.parents).toEqual(expected);
+    expect(parseWeddingGuestContent({ hero: { parents: { groom: expected.groom } } })?.hero?.parents).toEqual({ groom: expected.groom });
+    expect(parseWeddingGuestContent({ hero: {} })).toEqual({ hero: {} });
+  });
+
+  it("rejects malformed or unbounded parents content", () => {
+    for (const parents of [
+      null,
+      "Names",
+      { groom: { en: "Family" } },
+      { bride: { en: "Family", hi: " " } },
+      { groom: { en: "a".repeat(241), hi: "परिवार" } },
+      { groom: { en: "Family", hi: "परिवार", image: "https://unexpected.example" } },
+      { other: { en: "Family", hi: "परिवार" } }
+    ]) {
+      expect(parseWeddingGuestContent({ hero: { parents } })).toBeUndefined();
+    }
+  });
+
   it("rejects unsafe event rows and orders valid database events deterministically", () => {
     const mapped = mapWeddingEvent(eventRow);
     expect(mapped?.event.mapsUrl).toBe("https://maps.example/venue");

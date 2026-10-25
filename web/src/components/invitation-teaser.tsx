@@ -4,8 +4,10 @@ import { useRef, useState } from "react";
 
 import { invitationMediaUrl } from "@/lib/invitation-media";
 import type { Locale } from "@/lib/types";
+import { ScrollScenery } from "./scroll-scenery";
 
 import styles from "./invitation-teaser.module.css";
+import experienceStyles from "./wedding-experience.module.css";
 
 const copy = {
   en: {
@@ -75,9 +77,10 @@ export function InvitationTeaser({ token, locale, onPlayingChange }: {
   }
 
   return (
-    <section className={styles.section} id="teaser" aria-labelledby="teaser-title">
+    <section className={`${styles.section} ${experienceStyles["scene-surface"]}`} id="teaser" data-scroll-scene aria-labelledby="teaser-title">
+      <ScrollScenery variant="floral" token={token} />
       <div className={styles.inner}>
-        <div className={styles.introduction}>
+        <div className={styles.introduction} data-reveal="section">
           <p className={styles.eyebrow}>{labels.eyebrow}</p>
           <h2 id="teaser-title">{labels.title}</h2>
           <p className={styles.lead}>{labels.lead}</p>

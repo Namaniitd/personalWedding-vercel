@@ -8,15 +8,36 @@ import type { Locale } from "@/lib/types";
 
 import styles from "./invitation-photo-carousel.module.css";
 
-const slides = [
-  { image: "engagementCouplePic.jpg", small: "engagement-couple-640.webp", large: "engagement-couple-1067.webp" },
-  { image: "engagement-2.jpg", small: "engagement-2-640.webp", large: "engagement-2-1067.webp" },
-  { image: "engagement-3.jpg", small: "engagement-3-640.webp", large: "engagement-3-1067.webp" }
-] as const;
+type PhotoSlide = {
+  image: string;
+  small: string;
+  large: string;
+  width: number;
+  height: number;
+  alt?: Record<Locale, string>;
+};
+
+const slides: readonly PhotoSlide[] = [
+  {
+    image: "prewedding-lakeside-1066.webp", small: "prewedding-lakeside-640.webp", large: "prewedding-lakeside-1066.webp", width: 1066, height: 1600,
+    alt: { en: "The couple together by the lake during their pre-wedding shoot", hi: "प्री-वेडिंग शूट में झील के किनारे साथ खड़े दूल्हा-दुल्हन" }
+  },
+  {
+    image: "prewedding-palace-1066.webp", small: "prewedding-palace-640.webp", large: "prewedding-palace-1066.webp", width: 1066, height: 1600,
+    alt: { en: "The couple beneath a colorful palace arch during their pre-wedding shoot", hi: "प्री-वेडिंग शूट में महल की रंगीन मेहराब के नीचे दूल्हा-दुल्हन" }
+  },
+  {
+    image: "prewedding-hawa-mahal-1066.webp", small: "prewedding-hawa-mahal-640.webp", large: "prewedding-hawa-mahal-1066.webp", width: 1066, height: 1600,
+    alt: { en: "The couple in front of Hawa Mahal at sunset during their pre-wedding shoot", hi: "प्री-वेडिंग शूट में सूर्यास्त के समय हवा महल के सामने दूल्हा-दुल्हन" }
+  },
+  { image: "engagementCouplePic.jpg", small: "engagement-couple-640.webp", large: "engagement-couple-1067.webp", width: 1067, height: 1601 },
+  { image: "engagement-2.jpg", small: "engagement-2-640.webp", large: "engagement-2-1067.webp", width: 1067, height: 1601 },
+  { image: "engagement-3.jpg", small: "engagement-3-640.webp", large: "engagement-3-1067.webp", width: 1067, height: 1601 }
+];
 
 const copy = {
   en: {
-    gallery: "Our engagement photographs",
+    gallery: "Our pre-wedding and engagement photographs",
     carousel: "carousel",
     slide: "slide",
     previous: "Previous photograph",
@@ -26,7 +47,7 @@ const copy = {
     photo: (index: number) => `Photograph ${index + 1} of ${slides.length}`
   },
   hi: {
-    gallery: "हमारी सगाई की तस्वीरें",
+    gallery: "हमारी प्री-वेडिंग और सगाई की तस्वीरें",
     carousel: "स्लाइडशो",
     slide: "स्लाइड",
     previous: "पिछली तस्वीर",
@@ -136,16 +157,16 @@ export function InvitationPhotoCarousel({
             <picture>
               <source
                 type="image/webp"
-                srcSet={`${invitationMediaUrl(token, slide.small)} 640w, ${invitationMediaUrl(token, slide.large)} 1067w`}
+                srcSet={`${invitationMediaUrl(token, slide.small)} 640w, ${invitationMediaUrl(token, slide.large)} ${slide.width}w`}
                 sizes={sizes}
               />
               {/* Native picture sources keep every image behind the private media route. */}
               <img
                 ref={(img) => { imageRefs.current[index] = img; }}
                 src={invitationMediaUrl(token, slide.image)}
-                alt={alt}
-                width={1067}
-                height={1601}
+                alt={slide.alt?.[locale] ?? alt}
+                width={slide.width}
+                height={slide.height}
                 loading={index === 0 ? "eager" : "lazy"}
                 fetchPriority={index === 0 ? "high" : "low"}
                 decoding="async"

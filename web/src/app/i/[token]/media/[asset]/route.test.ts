@@ -124,6 +124,30 @@ describe("private invitation media", () => {
     expect(mocks.close).toHaveBeenCalledOnce();
   });
 
+  it("streams the local recording with audio headers and byte ranges after checking the invitation", async () => {
+    const response = await GET(rangeRequest("bytes=2-5"), context("raabta-instrumental.m4a"));
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-type")).toBe("audio/mp4");
+    expect(response.headers.get("content-range")).toBe("bytes 2-5/10");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(mocks.open.mock.calls[0]?.[0]).toMatch(/private-media[/\\]music[/\\]raabta-instrumental.m4a$/);
+    expect(mocks.open.mock.invocationCallOrder[0]).toBeGreaterThan(mocks.resolve.mock.invocationCallOrder[0]!);
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(videoBytes.subarray(2, 6));
+    expect(mocks.close).toHaveBeenCalledOnce();
+  });
+
+  it("authenticates audio metadata and denies a revoked link before opening the recording", async () => {
+    const response = await HEAD(request, context("raabta-instrumental.m4a"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("audio/mp4");
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(await response.text()).toBe("");
+    mocks.resolve.mockResolvedValue(null);
+    expect((await GET(request, context("raabta-instrumental.m4a"))).status).toBe(404);
+    expect(mocks.open).not.toHaveBeenCalled();
+    expect(mocks.readFile).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["bytes=2-5", 2, 5], ["bytes=7-", 7, 9], ["bytes=-4", 6, 9],
     ["bytes=0-99", 0, 9], ["bytes=-99", 0, 9], ["bytes=0-0", 0, 0]

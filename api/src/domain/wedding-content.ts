@@ -96,6 +96,10 @@ const guestContentSchema = z.object({
     invocation: text(240).optional(),
     region: localizedTextSchema.optional(),
     invitationLead: localizedTextSchema.optional(),
+    parents: z.object({
+      groom: popupLocalizedText(240).optional(),
+      bride: popupLocalizedText(240).optional()
+    }).strict().optional(),
     artworkKey: artworkKeySchema.optional(),
     artworkAlt: localizedTextSchema.optional()
   }).strict().optional(),

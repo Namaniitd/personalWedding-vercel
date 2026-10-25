@@ -5,6 +5,9 @@ export type WeddingSide = "groom" | "bride";
 
 export type LocalizedText = Record<Locale, string>;
 
+/** Optional names beneath each partner; both languages are supplied when configured. */
+export type WeddingParents = Partial<Record<WeddingSide, LocalizedText>>;
+
 /**
  * The only public-domain artwork keys that guest content may select.  Keeping
  * this a closed list means database content can never turn an invitation into
@@ -40,6 +43,7 @@ export interface WeddingGuestContent {
     invocation?: string;
     region?: LocalizedText;
     invitationLead?: LocalizedText;
+    parents?: WeddingParents;
     artworkKey?: WeddingArtworkKey;
     artworkAlt?: LocalizedText;
   };
