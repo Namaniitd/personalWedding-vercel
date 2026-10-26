@@ -45,7 +45,7 @@
   max-width: 100%;
   margin: 0;
   color: #fff0d5;
-  font-family: var(--display);
+  font-family: var(--display-latin);
   font-size: clamp(27px, 3.5vw, 37px);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -81,9 +81,7 @@
 
 .countdown[lang="hi"] .heading { font-size: 12px; }
 .countdown[lang="hi"] .label { font-size: 11px; }
-.countdown[lang="hi"] .value,
 .countdown[lang="hi"] .arrived { font-family: var(--body-hi); }
-.countdown[lang="hi"] .value { line-height: 1.2; }
 
 .screenReaderOnly {
   position: absolute;

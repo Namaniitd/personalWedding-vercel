@@ -28,16 +28,13 @@ const slides: readonly PhotoSlide[] = [
   },
   {
     image: "prewedding-hawa-mahal-1066.webp", small: "prewedding-hawa-mahal-640.webp", large: "prewedding-hawa-mahal-1066.webp", width: 1066, height: 1600,
-    alt: { en: "The couple in front of Hawa Mahal at sunset during their pre-wedding shoot", hi: "प्री-वेडिंग शूट में सूर्यास्त के समय हवा महल के सामने दूल्हा-दुल्हन" }
-  },
-  { image: "engagementCouplePic.jpg", small: "engagement-couple-640.webp", large: "engagement-couple-1067.webp", width: 1067, height: 1601 },
-  { image: "engagement-2.jpg", small: "engagement-2-640.webp", large: "engagement-2-1067.webp", width: 1067, height: 1601 },
-  { image: "engagement-3.jpg", small: "engagement-3-640.webp", large: "engagement-3-1067.webp", width: 1067, height: 1601 }
+    alt: { en: "The couple sitting in front of Hawa Mahal during their pre-wedding shoot", hi: "प्री-वेडिंग शूट में हवा महल के सामने बैठे दूल्हा-दुल्हन" }
+  }
 ];
 
 const copy = {
   en: {
-    gallery: "Our pre-wedding and engagement photographs",
+    gallery: "Our pre-wedding photographs",
     carousel: "carousel",
     slide: "slide",
     previous: "Previous photograph",
@@ -47,7 +44,7 @@ const copy = {
     photo: (index: number) => `Photograph ${index + 1} of ${slides.length}`
   },
   hi: {
-    gallery: "हमारी प्री-वेडिंग और सगाई की तस्वीरें",
+    gallery: "हमारी प्री-वेडिंग तस्वीरें",
     carousel: "स्लाइडशो",
     slide: "स्लाइड",
     previous: "पिछली तस्वीर",

@@ -1,5 +1,15 @@
-Wedding project source archive, commit 59fca3c.
+Wedding project source archive from the current working copy.
 
-The HD and 4K teaser videos are intentionally omitted to keep this ZIP below 20 MB. The teaser poster, source code, photographs, and music are included.
+The HD and 4K teaser videos are intentionally omitted:
+- web/private-media/teaser/prewedding-teaser-hd.mp4
+- web/private-media/teaser/prewedding-teaser-4k.mp4
 
-Local database content, credentials, dependencies, and build output are excluded. Follow the project READMEs to install dependencies and configure your environment.
+The teaser poster, source code, photographs, music, and current uncommitted
+project changes are included. Restore the video files at the paths above to
+use teaser playback.
+
+Local database content, credentials, Git history, dependencies, build output,
+and local test artifacts are excluded. Environment examples are included.
+Follow the package READMEs to install dependencies and configure your own
+local environment. The local Compose setup also needs your own
+api/database/content.local.sql file; private wedding data is not included.

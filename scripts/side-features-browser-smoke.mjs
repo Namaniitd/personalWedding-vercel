@@ -178,7 +178,7 @@ export async function runSideFeaturesBrowserSmoke(browser, { groomPassword, brid
 
     stage = "automatic photo advance, loop and manual pause";
     await guest.goto(origin + issued[0].path);
-    const carousel = guest.getByRole("region", { name: "Our engagement photographs", exact: true });
+    const carousel = guest.getByRole("region", { name: "Our pre-wedding photographs", exact: true });
     await carousel.locator('[data-slide="1"][aria-hidden="false"]').waitFor();
     for (const slide of [2, 3, 1]) await carousel.locator(`[data-slide="${slide}"][aria-hidden="false"]`).waitFor({ timeout: 10_000 });
     await guest.getByRole("button", { name: "Pause slideshow", exact: true }).click();
@@ -188,7 +188,7 @@ export async function runSideFeaturesBrowserSmoke(browser, { groomPassword, brid
     const reduced = await newPage({ reducedMotion: "reduce", viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await reduced.goto(origin + issued[1].path);
     await reduced.getByRole("button", { name: "Play slideshow", exact: true }).waitFor();
-    assert.equal(await reduced.getByRole("region", { name: "Our engagement photographs", exact: true }).getAttribute("data-playing"), "false");
+    assert.equal(await reduced.getByRole("region", { name: "Our pre-wedding photographs", exact: true }).getAttribute("data-playing"), "false");
     await reduced.locator('button[aria-haspopup="dialog"]').first().click();
     await reduced.getByRole("dialog").waitFor();
     await reduced.getByRole("button", { name: "Back to invitation", exact: true }).tap();

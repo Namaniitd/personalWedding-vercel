@@ -19,7 +19,7 @@ let videoBytes: Buffer;
 function rangeRequest(range: string) {
   return new NextRequest(request.url, { headers: { Range: range } });
 }
-function context(asset = "engagement-couple-640.webp", invitationToken = token) {
+function context(asset = "prewedding-lakeside-640.webp", invitationToken = token) {
   return { params: Promise.resolve({ token: invitationToken, asset }) };
 }
 
@@ -45,7 +45,7 @@ describe("private invitation media", () => {
     expect(response.status).toBe(200);
     expect(mocks.resolve).toHaveBeenCalledWith(token);
     expect(mocks.readFile.mock.invocationCallOrder[0]).toBeGreaterThan(mocks.resolve.mock.invocationCallOrder[0]!);
-    expect(mocks.readFile.mock.calls[0]?.[0]).toMatch(/private-media[/\\]engagement-couple-640.webp$/);
+    expect(mocks.readFile.mock.calls[0]?.[0]).toMatch(/private-media[/\\]prewedding[/\\]prewedding-lakeside-640.webp$/);
     expect(response.headers.get("content-type")).toBe("image/webp");
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
@@ -89,14 +89,15 @@ describe("private invitation media", () => {
   });
 
   it("authenticates HEAD requests and returns no body", async () => {
-    const response = await HEAD(request, context("engagementCouplePic.jpg"));
+    const response = await HEAD(request, context("prewedding-lakeside-1066.webp"));
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    expect(response.headers.get("content-type")).toBe("image/webp");
     expect(await response.text()).toBe("");
     expect(mocks.resolve).toHaveBeenCalledWith(token);
     expect(response.headers.get("content-length")).toBe("3");
     expect(mocks.readFile).not.toHaveBeenCalled();
     expect(mocks.open).not.toHaveBeenCalled();
+    expect(mocks.stat.mock.calls[0]?.[0]).toMatch(/private-media[/\\]prewedding[/\\]prewedding-lakeside-1066.webp$/);
     expect(mocks.stat.mock.invocationCallOrder[0]).toBeGreaterThan(mocks.resolve.mock.invocationCallOrder[0]!);
   });
 

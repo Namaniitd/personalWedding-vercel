@@ -66,7 +66,6 @@ type InviteCopy = {
   privacy: string;
   privacyCopy: string;
   footer: string;
-
   heroPhotoAlt: string;
   detailPhotoAlt: string;
   blessingFallback: string;
@@ -119,8 +118,7 @@ const copy: Record<Locale, InviteCopy> = {
     privacy: "Your response stays with the families",
     privacyCopy: "Your RSVP helps us plan hospitality. Only the couple and their coordination team can see it; it is never used for marketing.",
     footer: "We look forward to celebrating together.",
-
-    heroPhotoAlt: "The couple together at their engagement celebration",
+    heroPhotoAlt: "The couple together in their pre-wedding photographs",
     detailPhotoAlt: "Mehendi adorned hands, shown as decorative wedding photography",
     blessingFallback: "Blessings for the journey",
     backToTop: "Back to top"
@@ -141,7 +139,7 @@ const copy: Record<Locale, InviteCopy> = {
     place: "स्थान",
     forHousehold: "विशेष रूप से",
     privateNote: "यह लिंक आपके परिवार के लिए है। कृपया इसे निजी रखें।",
-    eventCount: (count) => `आपके निमंत्रण में ${new Intl.NumberFormat("hi-IN-u-nu-deva").format(count)} समारोह`,
+    eventCount: (count) => `आपके निमंत्रण में ${new Intl.NumberFormat("hi-IN-u-nu-latn").format(count)} समारोह`,
     rsvpNow: "अपना उत्तर दें",
     viewSchedule: "समारोह देखें",
     phoneFallback: "फ़ोन पर उत्तर देना चाहेंगे?",
@@ -170,8 +168,7 @@ const copy: Record<Locale, InviteCopy> = {
     privacy: "आपका उत्तर परिवारों तक सीमित है",
     privacyCopy: "आपका RSVP हमें आतिथ्य की योजना बनाने में मदद करता है। इसे केवल जोड़ा और उनकी समन्वय टीम देख सकती है; इसका उपयोग प्रचार के लिए नहीं होता।",
     footer: "हम साथ मिलकर उत्सव मनाने की प्रतीक्षा कर रहे हैं।",
-
-    heroPhotoAlt: "सगाई समारोह में साथ खड़े वर और वधू",
+    heroPhotoAlt: "विवाह पूर्व की तस्वीरों में साथ वर और वधू",
     detailPhotoAlt: "मेहंदी लगे हाथों की सजावटी विवाह तस्वीर",
     blessingFallback: "मंगल यात्रा के लिए आशीर्वाद",
     backToTop: "ऊपर जाएँ"
@@ -347,7 +344,7 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
       </aside>}
 
       <section className={`${styles.hero} ${experienceStyles["invitation-hero"]}`} id="invitation" data-scroll-scene aria-labelledby="invitation-title">
-        <ScrollScenery variant="palace" token={invitation.token} />
+        <ScrollScenery variant="palace" token={invitation.token} photo="prewedding-hero" />
         <HeroOrnaments />
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>

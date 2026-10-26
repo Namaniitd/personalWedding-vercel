@@ -66,8 +66,9 @@ export function useScrollScenes(root: RefObject<HTMLDivElement | null>, active: 
           scene.element.dataset.chapter = String(chapter);
           scene.element.style.setProperty("--story-pan", `${((progress - .5) * -90 * amplitude).toFixed(2)}px`);
           scene.element.style.setProperty("--story-scale", `${(1.14 - progress * .07).toFixed(4)}`);
+          const photoProgress = progress * scene.story.images.length;
           scene.story.images.forEach((image, index) => {
-            const opacity = index === 0 ? 1 : clamp((progress * count - index + .35) / .7);
+            const opacity = index === 0 ? 1 : clamp((photoProgress - index + .35) / .7);
             image.style.opacity = opacity.toFixed(4);
           });
           scene.story.captions.forEach((caption, index) => { caption.dataset.active = String(index === chapter); });
@@ -97,7 +98,7 @@ export function useScrollScenes(root: RefObject<HTMLDivElement | null>, active: 
           story: stage ? {
             height: stage.getBoundingClientRect().height,
             inset: Number.parseFloat(getComputedStyle(stage).top) || 0,
-            images: [...scene.querySelectorAll<HTMLElement>("[data-story-image]")],
+            images: [...scene.querySelectorAll<HTMLElement>("[data-story-image]")].filter((image) => getComputedStyle(image).display !== "none"),
             chapters: [...scene.querySelectorAll<HTMLElement>("[data-story-chapter]")],
             captions
           } : null

@@ -11,6 +11,12 @@ allowlist and rate limits, and retain no-store headers. Anyone can view these
 assets while the public invitation is available; private guest responses and
 personal links are never included.
 
+The runtime allowlist contains 25 files: 16 prewedding WebP exports, two
+selectable artwork JPEGs, three mehendi images, one teaser poster, two teaser
+videos, and one music file. The eight source JPEGs listed below are retained
+only for future exports and are excluded from deployments. Unused portraits,
+backgrounds, artwork, and duplicate sources have been removed.
+
 Background music uses `music/raabta-instrumental.m4a`, an excerpt of the
 [Raabta instrumental cover by Havana The Band / Sound Spirit](https://www.youtube.com/watch?v=Fa8AXcfLXs4).
 The downloaded recording is exported as stereo 48 kHz AAC at 128 kbit/s with
@@ -33,40 +39,56 @@ native playback controls for pausing, seeking, and muting. Video requests use
 the same invitation gate and private headers, with byte ranges for playback and
 seeking.
 
-To replace the teaser later, keep the masters in `teaser/` and export web copies
-to the same filenames. No duration is hardcoded in the page. Use H.264 video,
-AAC audio, a 16:9 frame, keyframes every two seconds, and MP4 fast-start
-metadata. The current copies come from the `comingSoonHD.mp4` and
-`comingSoon4K.mp4` masters (about 59 Mbit/s each):
+To replace the teaser later, export web copies to the same filenames. No
+duration is hardcoded in the page. Use H.264 video, AAC audio, a 16:9 frame,
+keyframes every two seconds, and MP4 fast-start metadata. Keep source masters
+outside the deployed media inventory.
 
-```sh
-common="-map 0:v:0 -map 0:a:0 -map_metadata -1 -c:v libx264 -preset slow -profile:v high -pix_fmt yuv420p -g 50 -keyint_min 25 -c:a aac -b:a 160k -ac 2 -movflags +faststart"
-ffmpeg -i comingSoonHD.mp4 $common -crf 20 -maxrate 6M -bufsize 12M -level 4.1 prewedding-teaser-hd.mp4
-ffmpeg -i comingSoon4K.mp4 $common -crf 21 -maxrate 16M -bufsize 32M -level 5.1 prewedding-teaser-4k.mp4
-```
-
-They are about 27 MB and 87 MB. Full-file responses above 4 MiB are refused;
+The current copies are about 27 MB and 87 MB. Full-file responses above 4 MiB are refused;
 browsers play through bounded range responses instead. Keep both copies small
 enough that the media route stays below Vercel's 250 MB function bundle limit.
-The poster is a 1920×1080 lossy WebP (about 70 KB), exported from
-`teaser/prewedding-teaser-poster-source.png` with
-`cwebp -metadata none -q 82 -m 6 -crop 9 0 2922 1644 -resize 1920 1080 -noalpha`.
-The masters and poster source are excluded from git, Vercel uploads, the
-container, and the server bundle; only the web copies are allowlisted.
+The poster is a 1920×1080 lossy WebP (about 70 KB). Only the web copies are
+retained and allowlisted; source masters and a poster source are not stored here.
 
-The invitation hero opens with three pre-wedding portraits: the lakeside,
-palace arch, and Hawa Mahal photographs in `prewedding/`. Their 640px and 1066px
-WebP exports preserve the original framing and remove source metadata. The
-three existing engagement photographs follow them in the same slideshow, with
-their 640px and 1067px variants retained.
+The couple box contains only the three portraits from `prewedding/vertical/`:
+`jalMahal.jpeg`, `patrikaGate.jpeg`, and `sittingInFrontOfHawaMahal.jpeg`.
+Their 640px and 1066px WebP exports retain the `prewedding-lakeside`,
+`prewedding-palace`, and `prewedding-hawa-mahal` names, preserve the original
+framing, and remove source metadata.
 
-Three landscape photographs from the same pre-wedding shoot appear in the
-scrolling celebration chapters; the wide lakeside image also appears behind
-the hero and travel sections. Their 960px and 1600px WebP copies let phones
-request smaller files. The burgundy and ivory overlays keep text readable.
-Only optimized exports are copied into this folder; the source photos remain
-in the owner's Pictures directory. Every export uses the same invitation
-gate, allowlist, no-store headers, and output tracing as the existing images.
+The banner and scrolling backgrounds use selections from
+`prewedding/horizontal/`, exported as 960px and 1600px WebP copies:
+
+| Placement | Source | Export prefix |
+| --- | --- | --- |
+| First banner | `side_forehead_touch.jpeg` | `prewedding-hero` |
+| Travel banner | `holding_hug.jpeg` | `prewedding-banner` |
+| First story photo (desktop only) | `handhold_sunrise.jpeg` | `prewedding-handhold` |
+| Second story photo | `holding_hug.jpeg` | `prewedding-banner` |
+| Third story photo | `foreheadtouch_sunrise.jpeg` | `prewedding-ceremony` |
+| Fourth story photo | `forehead_kiss.jpeg` | `prewedding-reception` |
+
+Story photos appear once each, independently of event categories. Up to four
+unique photos fade across the full scrolling section while every event keeps
+its own caption and progress indicator. Extra events do not restart the photo
+sequence; the final photo stays visible at the end. Fewer than four events use
+only that many photos. One event shows one non-sticky panel, and no events
+omits the story. The first banner and travel banner do not depend on event count.
+
+The smaller copies let phones request less data. The burgundy and ivory
+overlays keep text readable. Desktop backgrounds show the entire photograph
+without zooming. Mobile backgrounds crop toward the couple: left in the first
+banner, right in the travel banner and hug/touch/kiss story photos. The handhold
+photo is omitted on mobile, where its wide framing cannot keep both faces in a
+full-height crop. Mobile starts with the hug photo; a single-event invitation
+uses that photo as its responsive fallback too. Hidden photos are excluded from
+the scrolling fade timeline. Paused or reduced-motion
+story layouts retain the full photo even when their captions make them taller.
+The banner photos' mobile height is bounded and fades out, so a tall stacked
+section does not magnify a narrow strip of the image. Source JPEG folders are excluded from Vercel uploads and container
+builds; only the optimized exports are allowlisted and included in server
+bundles. Every export uses the same invitation gate and no-store headers as
+the existing images.
 Never capture real personal photographs, invitation links, or entry
 credentials in test artifacts.
 

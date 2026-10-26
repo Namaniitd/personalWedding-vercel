@@ -34,7 +34,7 @@ while that invitation is active and unexpired; public RSVP pages use separate
 routes that check the team's public invitation configuration. Those responses are not cached,
 and the Next.js image optimizer cannot fetch them. The generic share preview
 and attribution documents remain public. The hero uses responsive WebP variants
-for its six pre-wedding and engagement portraits, pauses while the tab is hidden, and starts
+for its three pre-wedding portraits, pauses while the tab is hidden, and starts
 paused for reduced motion. Event names open accessible dialogs containing
 that event's optional description, custom plain-text fields, and visit details.
 

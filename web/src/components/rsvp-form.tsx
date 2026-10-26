@@ -151,8 +151,8 @@ const formCopy: Record<Locale, FormCopy> = {
     call: "कॉल करें",
     summary: "आपका उत्तर",
     selectedEvents: "चुने हुए समारोह",
-    selectedCount: (count) => `${new Intl.NumberFormat("hi-IN-u-nu-deva", { useGrouping: false }).format(count)} समारोह चुने गए`,
-    guestCount: (adults, children) => `${new Intl.NumberFormat("hi-IN-u-nu-deva", { useGrouping: false }).format(adults)} वयस्क · ${new Intl.NumberFormat("hi-IN-u-nu-deva", { useGrouping: false }).format(children)} ${children === 1 ? "बच्चा" : "बच्चे"}`,
+    selectedCount: (count) => `${new Intl.NumberFormat("hi-IN-u-nu-latn", { useGrouping: false }).format(count)} समारोह चुने गए`,
+    guestCount: (adults, children) => `${new Intl.NumberFormat("hi-IN-u-nu-latn", { useGrouping: false }).format(adults)} वयस्क · ${new Intl.NumberFormat("hi-IN-u-nu-latn", { useGrouping: false }).format(children)} ${children === 1 ? "बच्चा" : "बच्चे"}`,
     decrease: (label) => `${label} की संख्या घटाएं`,
     increase: (label) => `${label} की संख्या बढ़ाएं`
   }

@@ -154,7 +154,7 @@ async function main() {
 
     const html = await page(`/rsvp/${side}`, `${side} public invitation`);
     check(/contact number/i.test(html), `${side} public contact field`);
-    const media = await request(`/rsvp/${side}/media/engagement-couple-640.webp`, `${side} public media`, { method: "HEAD" });
+    const media = await request(`/rsvp/${side}/media/prewedding-lakeside-640.webp`, `${side} public media`, { method: "HEAD" });
     expectStatus(media, 200, `${side} public media`);
     expectPrivate(media, `${side} public media`);
     check(Number(media.headers.get("content-length")) > 0, `${side} public media size`);

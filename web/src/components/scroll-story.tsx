@@ -4,11 +4,13 @@ import type { Locale, LocalizedText, WeddingEvent } from "@/lib/types";
 import { BotanicalSprig, PalacePortal } from "./scroll-scenery";
 import styles from "./wedding-experience.module.css";
 
-const images: Record<WeddingEvent["category"], string> = {
-  celebration: "prewedding-celebration",
-  ceremony: "prewedding-ceremony",
-  reception: "prewedding-reception"
-};
+// Each photo appears once; event captions advance on their own timeline.
+const photos = [
+  { id: "handhold", image: "prewedding-handhold" },
+  { id: "holding-hug", image: "prewedding-banner" },
+  { id: "forehead-touch", image: "prewedding-ceremony" },
+  { id: "forehead-kiss", image: "prewedding-reception" }
+] as const;
 
 /** Only the events already resolved for this invitation become story chapters. */
 export function ScrollStory({ locale, couple, events, token }: {
@@ -18,14 +20,16 @@ export function ScrollStory({ locale, couple, events, token }: {
   token: string;
 }) {
   if (!events.length) return null;
+  const storyPhotos = photos.slice(0, events.length);
 
   return <section className={styles["scroll-story"]} id="celebration-story" data-scroll-scene data-scroll-story data-single-chapter={events.length === 1 || undefined} aria-labelledby="story-title">
     <h2 id="story-title" className={styles["scene-sr-only"]}>{locale === "hi" ? "मिलकर बनाएँ खूबसूरत यादें" : "A celebration to remember"}</h2>
     <div className={styles["story-stage"]} data-story-stage>
       <div className={styles["story-images"]} aria-hidden="true">
-        {events.map((event, index) => <picture key={event.id}>
-          <source type="image/webp" srcSet={`${invitationMediaUrl(token, `${images[event.category]}-960.webp`)} 960w, ${invitationMediaUrl(token, `${images[event.category]}-1600.webp`)} 1600w`} sizes="100vw" />
-          <img className={`${styles["story-image"]} ${index === 0 ? styles["story-image-first"] : ""}`} data-story-image data-photo={event.category} src={invitationMediaUrl(token, `${images[event.category]}-1600.webp`)} alt="" width={1600} height={1066} loading="lazy" decoding="async" />
+        {storyPhotos.map((photo, index) => <picture key={photo.id}>
+          {photo.id === "handhold" && events.length === 1 && <source media="(max-width: 760px)" type="image/webp" srcSet={`${invitationMediaUrl(token, "prewedding-banner-960.webp")} 960w, ${invitationMediaUrl(token, "prewedding-banner-1600.webp")} 1600w`} sizes="100vw" />}
+          <source type="image/webp" srcSet={`${invitationMediaUrl(token, `${photo.image}-960.webp`)} 960w, ${invitationMediaUrl(token, `${photo.image}-1600.webp`)} 1600w`} sizes="100vw" />
+          <img className={`${styles["story-image"]} ${index === 0 ? styles["story-image-first"] : ""}`} data-story-image data-photo={photo.id} src={invitationMediaUrl(token, `${photo.image}-1600.webp`)} alt="" width={1600} height={1066} loading="lazy" decoding="async" />
         </picture>)}
       </div>
       <div className={styles["story-veil"]} aria-hidden="true" />

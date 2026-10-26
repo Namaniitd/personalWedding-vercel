@@ -45,8 +45,8 @@ const nextConfig: NextConfig = {
     "/rsvp/*/media/*": ["./private-media/**/*.jpg", "./private-media/**/*.webp", "./private-media/music/raabta-instrumental.m4a", "./private-media/teaser/prewedding-teaser-hd.mp4", "./private-media/teaser/prewedding-teaser-4k.mp4"]
   },
   outputFileTracingExcludes: {
-    "/i/*/media/*": ["./private-media/teaser/comingSoon*.mp4", "./private-media/teaser/*-source.*", "./private-media/**/.DS_Store"],
-    "/rsvp/*/media/*": ["./private-media/teaser/comingSoon*.mp4", "./private-media/teaser/*-source.*", "./private-media/**/.DS_Store"]
+    "/i/*/media/*": ["./private-media/teaser/comingSoon*.mp4", "./private-media/teaser/*-source.*", "./private-media/prewedding/vertical/**/*", "./private-media/prewedding/horizontal/**/*", "./private-media/**/.DS_Store"],
+    "/rsvp/*/media/*": ["./private-media/teaser/comingSoon*.mp4", "./private-media/teaser/*-source.*", "./private-media/prewedding/vertical/**/*", "./private-media/prewedding/horizontal/**/*", "./private-media/**/.DS_Store"]
   },
   poweredByHeader: false,
   turbopack: {

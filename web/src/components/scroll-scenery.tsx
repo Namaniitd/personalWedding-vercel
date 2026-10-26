@@ -35,11 +35,11 @@ export function PalacePortal({ className = "" }: { className?: string }) {
   </svg>;
 }
 
-export function ScrollScenery({ variant = "botanical", token }: { variant?: "palace" | "botanical" | "floral"; token: string }) {
+export function ScrollScenery({ variant = "botanical", token, photo = "prewedding-banner" }: { variant?: "palace" | "botanical" | "floral"; token: string; photo?: "prewedding-hero" | "prewedding-banner" }) {
   return <div className={styles["scene-backdrop"]} data-variant={variant} aria-hidden="true">
     {variant === "palace" && <picture>
-      <source type="image/webp" srcSet={`${invitationMediaUrl(token, "prewedding-lakeside-wide-960.webp")} 960w, ${invitationMediaUrl(token, "prewedding-lakeside-wide-1600.webp")} 1600w`} sizes="100vw" />
-      <img className={styles["scenery-photo"]} src={invitationMediaUrl(token, "prewedding-lakeside-wide-1600.webp")} loading="lazy" alt="" width={1600} height={1066} decoding="async" />
+      <source type="image/webp" srcSet={`${invitationMediaUrl(token, `${photo}-960.webp`)} 960w, ${invitationMediaUrl(token, `${photo}-1600.webp`)} 1600w`} sizes="100vw" />
+      <img className={styles["scenery-photo"]} src={invitationMediaUrl(token, `${photo}-1600.webp`)} loading="lazy" alt="" width={1600} height={1066} decoding="async" />
     </picture>}
     <div className={styles["scenery-veil"]} />
     <div className={styles["scenery-mandala"]}><Mandala /></div>

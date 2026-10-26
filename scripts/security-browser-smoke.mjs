@@ -2,12 +2,17 @@ import assert from "node:assert/strict";
 
 const origin = "http://127.0.0.1:3001";
 const assets = [
-  "engagement-2.jpg", "engagement-2-640.webp", "engagement-2-1067.webp",
-  "engagement-3.jpg", "engagement-3-640.webp", "engagement-3-1067.webp",
-  "engagementCouplePic.jpg", "engagement-couple-640.webp", "engagement-couple-1067.webp",
-  "ganesha-basohli.jpg", "gaja-lakshmi.jpg", "shiva-parvati-terrace.jpg", "shiva-parvati-celebration.jpg",
-  "wedding-saptapadi.jpg", "wedding-varmala.jpg", "wedding-mehendi.jpg", "wedding-mehendi-960.webp",
-  "wedding-mehendi-1440.webp", "wedding-hands.jpg", "wedding-hands-960.webp", "wedding-hands-1920.webp"
+  "prewedding-lakeside-640.webp", "prewedding-lakeside-1066.webp",
+  "prewedding-palace-640.webp", "prewedding-palace-1066.webp",
+  "prewedding-hawa-mahal-640.webp", "prewedding-hawa-mahal-1066.webp",
+  "prewedding-hero-960.webp", "prewedding-hero-1600.webp",
+  "prewedding-banner-960.webp", "prewedding-banner-1600.webp",
+  "prewedding-handhold-960.webp", "prewedding-handhold-1600.webp",
+  "prewedding-ceremony-960.webp", "prewedding-ceremony-1600.webp",
+  "prewedding-reception-960.webp", "prewedding-reception-1600.webp",
+  "ganesha-basohli.jpg", "gaja-lakshmi.jpg",
+  "wedding-mehendi.jpg", "wedding-mehendi-960.webp", "wedding-mehendi-1440.webp",
+  "prewedding-teaser-poster.webp"
 ];
 
 /** Playwright regression checks restricted to disposable synthetic fixtures. */
@@ -54,14 +59,14 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
     await page.context().clearCookies();
     await check("old public media URLs and direct private-folder access are denied", async () => {
       for (const asset of assets) {
-        const directory = asset.startsWith("wedding-") ? "wedding/" : asset.startsWith("shiva-") ? "divine/" : "";
+        const directory = asset.startsWith("wedding-") ? "wedding/" : asset.startsWith("prewedding-") && !asset.startsWith("prewedding-teaser-") ? "prewedding/" : "";
         assert.equal((await page.request.get(origin + "/images/" + directory + asset)).status(), 404, "Invitation images must not have public copies.");
       }
-      assert.equal((await page.request.get(origin + "/private-media/engagementCouplePic.jpg")).status(), 404);
+      assert.equal((await page.request.get(origin + "/private-media/prewedding/prewedding-lakeside-640.webp")).status(), 404);
       assert.equal((await page.request.get(origin + "/images/invitation-share.png")).status(), 200, "The generic messaging preview must still load.");
     });
     await check("inactive invitation cannot load private media", async () => {
-      const response = await page.request.get(origin + "/i/invalid-security-test-token/media/engagementCouplePic.jpg");
+      const response = await page.request.get(origin + "/i/invalid-security-test-token/media/prewedding-lakeside-640.webp");
       assert.equal(response.status(), 404);
       assert.match(response.headers()["cache-control"] ?? "", /no-store/);
     });
@@ -90,7 +95,7 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
       }
     });
     await check("image optimizer and arbitrary file paths cannot expose private media", async () => {
-      const privatePath = invitation.path + "/media/engagement-couple-640.webp";
+      const privatePath = invitation.mediaPath + "/media/prewedding-lakeside-640.webp";
       const optimizer = "/_next/image?url=" + encodeURIComponent(privatePath) + "&w=640&q=75";
       assert.equal((await page.request.get(origin + optimizer)).status(), 400);
       for (const asset of ["constructor", "package.json", encodeURIComponent("../../.env.local")]) {
@@ -116,7 +121,7 @@ export async function runWeddingSecurityBrowserSmoke(page, { password, baseUrl =
     await check("invitation revocation blocks GET and HEAD media even for a signed-in coordinator", async () => {
       assert.equal((await post("/api/coordinator/g/invitations/revoke", { invitationId: invitation.id })).status(), 200);
       revoked = true;
-      const privatePath = origin + invitation.path + "/media/engagementCouplePic.jpg";
+      const privatePath = origin + invitation.mediaPath + "/media/prewedding-lakeside-640.webp";
       assert.equal((await page.request.get(privatePath)).status(), 404);
       assert.equal((await page.request.head(privatePath)).status(), 404);
     });

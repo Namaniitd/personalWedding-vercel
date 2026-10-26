@@ -215,7 +215,8 @@
 .scene-surface { position: relative; isolation: isolate; overflow: clip; }
 .scene-surface > :not(.scene-backdrop) { position: relative; z-index: 1; }
 .scene-backdrop { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; }
-.scenery-photo { position: absolute; inset: -18% -6%; width: 112%; height: 136%; max-width: none; object-fit: cover; object-position: 50% 45%; opacity: .34; filter: sepia(.3) saturate(.65); transform: translate3d(0, calc(var(--scroll-offset, 0px) * .2), 0) scale(1.04); }
+/* Desktop keeps the full photograph; only mobile uses subject-focused crops. */
+.scenery-photo { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; object-position: center; opacity: .34; filter: sepia(.3) saturate(.65); }
 .scenery-veil { position: absolute; inset: 0; }
 .scene-backdrop:where([data-variant="palace"]) .scenery-veil { background: linear-gradient(90deg, #421021d9 0%, #4e172db8 48%, #42102185 100%); }
 .scenery-mandala { position: absolute; top: 14%; right: -190px; width: 520px; color: #8f4a39; opacity: .07; transform: translate3d(0, calc(var(--scroll-offset, 0px) * -.14), 0) rotate(var(--scroll-rotation, 0deg)); }
@@ -226,6 +227,7 @@
 .scenery-portal { position: absolute; top: 50%; left: 49%; width: min(62vw, 740px); height: auto; color: #f2c383; opacity: .14; transform: translate(-50%, -50%); translate: 0 calc(var(--scroll-offset, 0px) * .1); }
 .scenery-grain { position: absolute; inset: 0; opacity: .09; background-image: radial-gradient(#bd9464 0.6px, transparent .6px); background-size: 5px 5px; }
 .invitation-hero { overflow: clip; }
+.invitation-hero .scenery-veil { background: linear-gradient(90deg, #42102180, #4e172db8 48%, #421021d9); }
 .invitation-hero .scenery-sprig { color: #e1b374; opacity: .28; }
 .invitation-hero .scenery-sprig-left { top: 10%; left: -125px; }
 .invitation-hero .scenery-sprig-right { right: -95px; bottom: 1%; }
@@ -255,13 +257,8 @@
 .scroll-story { position: relative; height: var(--story-height, 230svh); min-height: 0; color: #fff4df; background: #421021; }
 .story-stage { position: sticky; top: var(--scene-inset); height: calc(100svh - var(--scene-inset)); min-height: 400px; display: grid; place-items: center; isolation: isolate; overflow: clip; padding: 90px 30px 130px; background: #421021; }
 .story-images, .story-veil { position: absolute; z-index: -2; inset: 0; overflow: hidden; }
-.story-image { position: absolute; inset: -8% -4%; width: 108%; height: 116%; max-width: none; object-fit: cover; opacity: 0; filter: saturate(.65) sepia(.2); transform: translate3d(0, var(--story-pan, 0px), 0) scale(var(--story-scale, 1.1)); }
-.story-image-first { opacity: 1; object-position: 50% 46%; }
-.story-image[data-photo="celebration"] { object-position: 65% 45%; }
-.story-image[data-photo="ceremony"] { object-position: 55% 42%; }
-.story-image[data-photo="reception"] { object-position: 60% 45%; }
-.story-image-1 { object-position: 50% 55%; }
-.story-image-2 { object-position: 50% 38%; }
+.story-image { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: contain; object-position: center; opacity: 0; filter: saturate(.65) sepia(.2); }
+.story-image-first { opacity: 1; }
 .story-veil { z-index: -1; background: linear-gradient(180deg, #421021c2, #421021b8 48%, #421021ed), linear-gradient(90deg, #42102170, #42102125 45%, #42102150); }
 .story-portal { position: absolute; z-index: -1; top: 49%; left: 50%; width: min(78vw, 680px); height: auto; color: #f0c58a; opacity: .28; transform: translate(-50%, -50%); translate: 0 calc(var(--scroll-offset, 0px) * .05); scale: var(--story-scale, 1.1); }
 .story-sprig { position: absolute; z-index: -1; bottom: -12%; width: clamp(190px, 26vw, 390px); height: auto; color: #e5bd80; opacity: .5; }
@@ -328,15 +325,23 @@
   .invitation-hero .scenery-sprig-right { right: -155px; bottom: 9%; }
   .invitation-hero .scenery-mandala { width: 500px; top: -140px; right: -300px; }
   .scenery-portal { width: 120%; max-width: none; left: 50%; opacity: .1; }
-  .invitation-hero .scenery-photo { opacity: .25; }
+  /* Bound tall sections so their mobile backgrounds can still show both faces. */
+  .invitation-hero .scenery-photo, .scene-travel .scenery-photo { height: min(100%, 680px); object-fit: cover; mask-image: linear-gradient(#000 72%, transparent); }
+  .invitation-hero .scenery-photo { object-position: 25% 45%; opacity: .25; }
   .hero-scroll-cue { margin-top: 17px; font-size: 9px; }
   .hero-scroll-cue > span { width: 25px; height: 25px; font-size: 13px; }
   .scene-schedule .scenery-sprig-left { left: -185px; }
   .scene-schedule .scenery-sprig-right { right: -180px; }
   .scene-rsvp .scenery-sprig-right { right: -180px; }
-  .scene-travel .scenery-photo { opacity: .12; }
+  .scene-travel .scenery-photo { object-position: 100% 45%; opacity: .12; }
   .scroll-story { height: var(--story-height, 220svh); min-height: 0; }
   .story-stage { height: calc(100svh - var(--scene-inset) - 69px - env(safe-area-inset-bottom)); padding: 75px 24px 135px; min-height: 360px; }
+  .story-image { object-fit: cover; }
+  .scroll-story:not([data-single-chapter]) .story-image[data-photo="handhold"] { display: none; }
+  .story-image[data-photo="handhold"] { object-position: 100% 45%; }
+  .story-image[data-photo="holding-hug"] { object-position: 100% 45%; opacity: 1; }
+  .story-image[data-photo="forehead-touch"] { object-position: 86% 42%; }
+  .story-image[data-photo="forehead-kiss"] { object-position: 84% 45%; }
   .story-topline { left: 23px; right: 23px; top: 24px; font-size: 6px; letter-spacing: .12em; }
   .story-topline > span:last-child { font-size: 5px; }
   .story-eyebrow { font-size: 8px; gap: 11px; margin-bottom: 23px; }
@@ -358,6 +363,7 @@
   [lang="hi"] .story-description { font-size: 12px; }
   [lang="hi"] .story-chapter > span:last-child { font-size: 9px; }
   .experience[data-motion="off"] .story-stage { padding: 85px 27px 38px; }
+  .experience[data-motion="off"] .story-image { object-fit: contain; object-position: center; }
   .experience[data-motion="off"] .story-captions { grid-template-columns: minmax(0, 1fr); gap: 58px; }
   .experience[data-motion="off"] .story-caption h3 { max-width: 410px; font-size: 46px; }
   .experience[data-motion="off"] .story-description { max-width: 330px; }
