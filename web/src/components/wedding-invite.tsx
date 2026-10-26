@@ -66,8 +66,7 @@ type InviteCopy = {
   privacy: string;
   privacyCopy: string;
   footer: string;
-  artworkCredit: string;
-  photoCredit: string;
+
   heroPhotoAlt: string;
   detailPhotoAlt: string;
   blessingFallback: string;
@@ -120,8 +119,7 @@ const copy: Record<Locale, InviteCopy> = {
     privacy: "Your response stays with the families",
     privacyCopy: "Your RSVP helps us plan hospitality. Only the couple and their coordination team can see it; it is never used for marketing.",
     footer: "We look forward to celebrating together.",
-    artworkCredit: "Artwork credits",
-    photoCredit: "Photography credits",
+
     heroPhotoAlt: "The couple together at their engagement celebration",
     detailPhotoAlt: "Mehendi adorned hands, shown as decorative wedding photography",
     blessingFallback: "Blessings for the journey",
@@ -172,8 +170,7 @@ const copy: Record<Locale, InviteCopy> = {
     privacy: "आपका उत्तर परिवारों तक सीमित है",
     privacyCopy: "आपका RSVP हमें आतिथ्य की योजना बनाने में मदद करता है। इसे केवल जोड़ा और उनकी समन्वय टीम देख सकती है; इसका उपयोग प्रचार के लिए नहीं होता।",
     footer: "हम साथ मिलकर उत्सव मनाने की प्रतीक्षा कर रहे हैं।",
-    artworkCredit: "कलाकृति का श्रेय",
-    photoCredit: "फ़ोटोग्राफ़ी का श्रेय",
+
     heroPhotoAlt: "सगाई समारोह में साथ खड़े वर और वधू",
     detailPhotoAlt: "मेहंदी लगे हाथों की सजावटी विवाह तस्वीर",
     blessingFallback: "मंगल यात्रा के लिए आशीर्वाद",
@@ -463,7 +460,7 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
 
       <footer className={styles.footer}>
         <div><span className={styles.footerMonogram} aria-hidden="true">{initials.split("").join("&")}</span><p>{labels.footer}</p></div>
-        <div><p><strong>{labels.privacy}</strong><br />{labels.privacyCopy}</p><a href="/images/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">{labels.artworkCredit}</a><a href="/images/wedding/ATTRIBUTION.md" target="_blank" rel="noopener noreferrer">{labels.photoCredit}</a><a href="#top">{labels.backToTop} ↑</a></div>
+        <div><p><strong>{labels.privacy}</strong><br />{labels.privacyCopy}</p><a href="#top">{labels.backToTop} ↑</a></div>
       </footer>
 
       <nav className={styles.mobileNav} aria-label={locale === "hi" ? "निमंत्रण नेविगेशन" : "Invitation navigation"}>

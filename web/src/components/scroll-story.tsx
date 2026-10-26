@@ -5,9 +5,9 @@ import { BotanicalSprig, PalacePortal } from "./scroll-scenery";
 import styles from "./wedding-experience.module.css";
 
 const images: Record<WeddingEvent["category"], string> = {
-  celebration: "prewedding-lakeside-wide",
-  ceremony: "prewedding-sunset-embrace",
-  reception: "prewedding-sunset-portrait"
+  celebration: "prewedding-celebration",
+  ceremony: "prewedding-ceremony",
+  reception: "prewedding-reception"
 };
 
 /** Only the events already resolved for this invitation become story chapters. */

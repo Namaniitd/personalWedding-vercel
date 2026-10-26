@@ -28,11 +28,9 @@ const copy = {
 }>;
 
 const units: Array<keyof CountdownParts> = ["days", "hours", "minutes", "seconds"];
-const hindiDigits = "०१२३४५६७८९";
 
-function countdownNumber(value: number, locale: Locale) {
-  const text = String(value).padStart(2, "0");
-  return locale === "hi" ? text.replace(/\d/g, (digit) => hindiDigits[Number(digit)]) : text;
+function countdownNumber(value: number) {
+  return String(value).padStart(2, "0");
 }
 
 export function WeddingCountdown({ target, locale }: { target: string; locale: Locale }) {
@@ -92,7 +90,7 @@ export function WeddingCountdown({ target, locale }: { target: string; locale: L
                 <div className={styles.unit} key={unit}>
                   <dt className={styles.label}>{labels.units[unit]}</dt>
                   <dd className={styles.value} aria-hidden={!parts || undefined}>
-                    {parts ? countdownNumber(parts[unit], locale) : "—"}
+                    {parts ? countdownNumber(parts[unit]) : "—"}
                   </dd>
                 </div>
               ))}

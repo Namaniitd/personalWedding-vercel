@@ -257,9 +257,9 @@
 .story-images, .story-veil { position: absolute; z-index: -2; inset: 0; overflow: hidden; }
 .story-image { position: absolute; inset: -8% -4%; width: 108%; height: 116%; max-width: none; object-fit: cover; opacity: 0; filter: saturate(.65) sepia(.2); transform: translate3d(0, var(--story-pan, 0px), 0) scale(var(--story-scale, 1.1)); }
 .story-image-first { opacity: 1; object-position: 50% 46%; }
-.story-image[data-photo="celebration"] { object-position: 92% 48%; }
-.story-image[data-photo="ceremony"] { object-position: 82% 45%; }
-.story-image[data-photo="reception"] { object-position: 25% 45%; }
+.story-image[data-photo="celebration"] { object-position: 65% 45%; }
+.story-image[data-photo="ceremony"] { object-position: 55% 42%; }
+.story-image[data-photo="reception"] { object-position: 60% 45%; }
 .story-image-1 { object-position: 50% 55%; }
 .story-image-2 { object-position: 50% 38%; }
 .story-veil { z-index: -1; background: linear-gradient(180deg, #421021c2, #421021b8 48%, #421021ed), linear-gradient(90deg, #42102170, #42102125 45%, #42102150); }
