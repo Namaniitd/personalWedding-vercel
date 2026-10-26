@@ -8,7 +8,7 @@ export { viewport } from "@/app/i/[token]/page";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const metadata: Metadata = {
-  title: "Wedding Invitation & RSVP",
+  title: "Naman & Neha | Wedding Invitation",
   description: "Join our wedding celebrations and RSVP for your household.",
   robots: { index: false, follow: false, noarchive: true }
 };

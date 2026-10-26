@@ -15,7 +15,7 @@ export const viewport: Viewport = {
   themeColor: "#421021"
 };
 
-const shareTitle = "A Personal Wedding Invitation";
+const shareTitle = "Naman & Neha | Wedding Invitation";
 const shareDescription = "Open your private invitation link for event details and RSVP.";
 
 export function generateMetadata(): Metadata {
