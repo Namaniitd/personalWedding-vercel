@@ -252,8 +252,7 @@ export function DatabaseInvitationIssuer({
     try {
       await navigator.share({
         title: "Private wedding invitation",
-        text: invitationShareIntro(issued),
-        url: issued.invitationUrl
+        text: invitationShareMessage(issued)
       });
       setCopyStatus("Share sheet closed. Check that you sent this only to the intended household.");
     } catch (error) {
