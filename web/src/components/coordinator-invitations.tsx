@@ -51,9 +51,11 @@ export function CoordinatorInvitations({
         {!publicLinkAvailable && <p role="status">Select between 1 and 12 published celebrations as defaults in <a href={`/coordinator/${weddingSideCode(side)}/content`}>Wedding content</a> to enable this public RSVP link. Currently, {publicEventCount} published celebration{publicEventCount === 1 ? " is" : "s are"} selected by default.</p>}
         <div className="database-invitation-copy-row">{publicLinkAvailable ? <a href={publicPath} target="_blank" rel="noopener noreferrer">Open public invitation · {publicPath} ↗</a> : <span aria-disabled="true">Public invitation unavailable · {publicPath}</span>}<button type="button" className="admin-primary-button" disabled={!publicLinkAvailable} onClick={async () => {
           if (!publicLinkAvailable) return;
-          try { await navigator.clipboard.writeText(new URL(publicPath, window.location.origin).toString()); setNotice("Public RSVP link copied. Anyone you share it with can RSVP."); }
+          const publicUrl = new URL(publicPath, window.location.origin).toString();
+          const shareMessage = `Dear friends and family,\n\nYou are cordially invited to celebrate the joyous occasion of our wedding.\n\nPlease visit our wedding invitation to view the event details and RSVP.\n\n💌 ${publicUrl}\n\nKindly share this invitation link only with members of your household.\n\nWe look forward to celebrating this special occasion with you!`;
+          try { await navigator.clipboard.writeText(shareMessage); setNotice("Public invitation message copied."); }
           catch { setNotice("Open the public invitation and copy its address to share it."); }
-        }}>Copy public RSVP link</button></div>
+        }}>Copy public invitation message</button></div>
       </section>
       <InvitationIssuer
         options={issuerOptions}
