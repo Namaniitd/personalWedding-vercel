@@ -90,6 +90,11 @@ describe("public RSVP and bulk invitation browser boundaries", () => {
     expect((await calendar(post("/api/calendar/test-bride-event", { publicSide: "bride" }), context)).status).toBe(200);
     expect(backend.resolvePublicInvitation).toHaveBeenCalledWith("bride");
     expect(backend.resolveBackendInvitation).not.toHaveBeenCalled();
+    const hindi = await calendar(post("/api/calendar/test-bride-event", { publicSide: "bride", locale: "hi" }), context);
+    expect(hindi.status).toBe(200);
+    expect(hindi.headers.get("cache-control")).toContain("no-store");
+    expect(await hindi.text()).toContain("SUMMARY:समारोह\r\n");
+    expect((await calendar(post("/api/calendar/test-bride-event", { publicSide: "bride", locale: "fr" }), context)).status).toBe(400);
     expect((await calendar(post("/api/calendar/test-bride-event", { publicSide: "bride", token }), context)).status).toBe(400);
   });
 });

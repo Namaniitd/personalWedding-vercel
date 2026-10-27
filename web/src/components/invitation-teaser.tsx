@@ -13,19 +13,19 @@ const copy = {
   en: {
     eyebrow: "Before the big day",
     title: "A glimpse of us",
-    lead: "A few moments together, before we celebrate with you.",
+    lead: "A few moments together before we celebrate with you.",
     watch: "Watch our pre-wedding teaser",
     video: "Pre-wedding teaser",
-    error: "The teaser could not play. Please try again when your connection is ready.",
+    error: "We couldn’t play the teaser. Please try again.",
     retry: "Try the teaser again"
   },
   hi: {
     eyebrow: "शुभ विवाह से पहले",
     title: "हमारी कुछ यादें",
-    lead: "आपके साथ उत्सव मनाने से पहले, साथ बिताए कुछ खूबसूरत पल।",
+    lead: "आपके साथ शादी की खुशियाँ मनाने से पहले, हमारे कुछ खूबसूरत पलों की झलक।",
     watch: "हमारा प्री-वेडिंग टीज़र देखें",
     video: "प्री-वेडिंग टीज़र",
-    error: "टीज़र नहीं चल पाया। कनेक्शन ठीक होने पर फिर प्रयास करें।",
+    error: "टीज़र नहीं चल सका। कृपया फिर से कोशिश करें।",
     retry: "टीज़र फिर से चलाएँ"
   }
 };

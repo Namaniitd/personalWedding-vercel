@@ -5,7 +5,7 @@ import { join } from "node:path";
 const origin = "http://127.0.0.1:3001";
 const defaultIntroduction = {
   en: "Together with our families, we invite you to celebrate the wedding of",
-  hi: "परिवारों के साथ, हम आपको इनके विवाह में सादर आमंत्रित करते हैं"
+  hi: "हम और हमारे परिवार आपको हमारे शुभ विवाह में सादर आमंत्रित करते हैं।"
 };
 const copy = (value) => structuredClone(value);
 

@@ -202,17 +202,17 @@ export async function runSideFeaturesBrowserSmoke(browser, { groomPassword, brid
     for (const [index, record] of issued.entries()) {
       const page = index === 0 ? guest : reduced;
       await page.goto(origin + record.path);
-      await page.getByRole("textbox", { name: /Who is completing this RSVP/ }).fill("Synthetic side respondent");
-      await page.getByText("We plan to attend", { exact: true }).click();
+      await page.getByRole("textbox", { name: /Name of the person replying/ }).fill("Synthetic side respondent");
+      await page.getByText("We’ll be there", { exact: true }).click();
       await page.locator(".event-response").getByText("Yes, we’ll be there", { exact: true }).click();
       const pending = page.waitForResponse(response => response.url().endsWith("/api/rsvp") && response.request().method() === "POST");
-      await page.getByRole("button", { name: "Submit RSVP", exact: true }).click();
+      await page.getByRole("button", { name: "Send reply", exact: true }).click();
       const response = await pending;
       assert.equal(response.status(), 200, "Both sides must accept their own guest replies.");
       const result = await response.json();
       assert.match(result.entryPass?.qrPayload ?? "", /^shaadi-entry:v1:[A-Za-z0-9_-]{43}$/);
       passes.push(result.entryPass.qrPayload.slice("shaadi-entry:v1:".length));
-      await page.getByRole("heading", { name: "We’ve received your response", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "We’ve received your reply", exact: true }).waitFor();
       await page.reload();
       await page.locator(".entry-pass-qr").waitFor();
       const actor = record.code === "b" ? bride : groom;

@@ -290,7 +290,7 @@
 .primaryButton:hover { background: #ffd084; transform: translateY(-2px); }
 .secondaryButton { color: #fff6e9; border-color: rgba(255, 222, 167, .7); background: rgba(59, 10, 28, .25); }
 .secondaryButton:hover { color: #3e1622; background: #fff1dc; }
-.heroHelp { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 12px; margin-top: 17px; color: #ebd6c6; font-size: 12px; }
+.heroHelp { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 12px; margin-top: 17px; color: #ebd6c6; font-size: 14px; }
 .heroHelp a { min-height: 44px; display: inline-flex; align-items: center; gap: 5px; color: #f2c37e; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .heroHelp a:hover { color: #ffe0a5; }
 
@@ -312,11 +312,11 @@
 .inviteeCopy { min-width: 0; flex: 1 1 auto; }
 .inviteeCopy .eyebrow { color: #6b2928; }
 .inviteeCopy h2 { margin: 3px 0 3px; color: #4b1b25; font-family: var(--editorial); font-size: clamp(31px, 3.3vw, 43px); font-weight: 600; letter-spacing: -.04em; line-height: 1.05; text-wrap: balance; }
-.page[lang="hi"] .inviteeCopy h2 { letter-spacing: -.02em; }
-.inviteeCopy > p:last-child { margin: 0; color: #68432f; font-size: 12px; line-height: 1.5; }
+.page[lang="hi"] .inviteeCopy h2 { letter-spacing: -.02em; line-height: 1.3; }
+.inviteeCopy > p:last-child { margin: 0; color: #68432f; font-size: 14px; line-height: 1.5; }
 .inviteeMeta { max-width: 335px; min-height: 72px; display: grid; align-content: center; gap: 8px; flex: 0 1 335px; padding-left: 30px; border-left: 1px solid rgba(91, 39, 33, .37); }
 .inviteeMeta strong { color: #4b1b25; font-size: 14px; font-weight: 850; line-height: 1.4; }
-.inviteeMeta p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; color: #60352a; font-size: 12px; line-height: 1.5; }
+.inviteeMeta p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; color: #60352a; font-size: 14px; line-height: 1.5; }
 .inviteeMeta svg { margin-right: 3px; }
 .inviteeMeta b { color: #461824; }
 
@@ -351,23 +351,23 @@
 .eventDate { display: flex; flex-direction: column; align-items: flex-start; padding: 3px 33px 0 0; }
 .eventNumber { margin-bottom: 17px; color: #b56d3b; font-family: var(--editorial); font-size: 45px; font-weight: 500; font-style: italic; line-height: .85; }
 .eventDate strong { color: #5d2430; font-family: var(--display); font-size: 29px; font-weight: 650; line-height: 1.05; }
-.eventDate > span:last-child { margin-top: 9px; color: #795e4d; font-size: 13px; font-weight: 750; }
-.page[lang="hi"] .eventDate strong { font-size: 24px; }
+.eventDate > span:last-child { margin-top: 9px; color: #795e4d; font-size: 14px; font-weight: 750; }
+.page[lang="hi"] .eventDate strong { font-size: 24px; line-height: 1.35; }
 .eventBody { min-width: 0; padding: 0 0 0 38px; border-left: 2px solid #d9aa79; }
 .eventBody h3 { margin: 0 0 19px; color: #452029; font-family: var(--editorial); font-size: 42px; font-weight: 600; letter-spacing: -.045em; line-height: 1.04; }
-.page[lang="hi"] .eventBody h3 { font-size: 32px; font-weight: 650; letter-spacing: -.02em; }
+.page[lang="hi"] .eventBody h3 { font-size: 32px; font-weight: 650; letter-spacing: -.02em; line-height: 1.3; }
 .eventFacts { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 16px 25px; }
 .eventFacts > div { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
 .eventFacts svg { flex: 0 0 auto; margin-top: 2px; color: #a8493c; }
 .eventFacts span { display: grid; gap: 2px; min-width: 0; }
-.eventFacts small { color: #7f6754; font-size: 11px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.eventFacts small { color: #7f6754; font-size: 12px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
 .page[lang="hi"] .eventFacts small { letter-spacing: 0; text-transform: none; }
-.eventFacts strong { color: #4d3b32; font-size: 14px; font-weight: 750; line-height: 1.45; }
-.eventBody address { margin: 13px 0 0 28px; color: #67584e; font-size: 13px; font-style: normal; line-height: 1.55; }
-.entryNote { margin: 10px 0 0 28px; color: #825344; font-size: 12px; line-height: 1.55; }
+.eventFacts strong { color: #4d3b32; font-size: 15px; font-weight: 750; line-height: 1.45; }
+.eventBody address { margin: 13px 0 0 28px; color: #67584e; font-size: 14px; font-style: normal; line-height: 1.55; }
+.entryNote { margin: 10px 0 0 28px; color: #825344; font-size: 14px; line-height: 1.55; }
 .eventExtras { display: flex; flex-wrap: wrap; gap: 12px 30px; margin: 19px 0 0; padding-top: 15px; border-top: 1px solid #e3d6c8; }
-.eventExtras p { margin: 0; color: #615147; font-size: 12px; line-height: 1.55; }
-.eventExtras span { display: block; margin-bottom: 4px; color: #8a5a40; font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.eventExtras p { margin: 0; color: #615147; font-size: 14px; line-height: 1.55; }
+.eventExtras span { display: block; margin-bottom: 4px; color: #8a5a40; font-size: 12px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
 .page[lang="hi"] .eventExtras span { letter-spacing: 0; text-transform: none; }
 .eventActions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 22px; }
 .eventActions a, .calendarAction button { min-height: 45px; display: inline-flex; align-items: center; gap: 7px; padding: 0 16px; color: #6b2430; border: 1px solid #cfae92; border-radius: 999px; background: #fffaf2; font-size: 13px; font-weight: 850; text-align: left; transition: border-color .2s ease, background .2s ease; }
@@ -376,7 +376,7 @@
 .calendarAction { position: relative; display: inline-flex; align-items: center; }
 .calendarAction button { color: #245c52; border-color: #b7c9b7; }
 .calendarAction button:disabled { opacity: .6; }
-.calendarAction small { position: absolute; z-index: 2; bottom: calc(100% + 6px); left: 0; width: min(250px, 72vw); padding: 9px; color: #85383a; border: 1px solid #efcccc; border-radius: 8px; background: #fff7f4; box-shadow: 0 8px 20px rgba(59, 36, 30, .1); font-size: 11px; line-height: 1.4; }
+.calendarAction small { position: absolute; z-index: 2; bottom: calc(100% + 6px); left: 0; width: min(250px, 72vw); padding: 9px; color: #85383a; border: 1px solid #efcccc; border-radius: 8px; background: #fff7f4; box-shadow: 0 8px 20px rgba(59, 36, 30, .1); font-size: 14px; line-height: 1.5; }
 
 /* Clip the decoration without a nested scroll area around focused form controls. */
 .rsvpSection { position: relative; isolation: isolate; overflow: clip; padding: 105px 24px 110px; background: radial-gradient(circle at 84% 12%, #8b3040 0%, transparent 32%), linear-gradient(140deg, #461023, #672033 60%, #3a1125); }
@@ -390,11 +390,12 @@
 .rsvpSection :global(.plan-option), .rsvpSection :global(.event-response) { border-radius: 12px; }
 .rsvpSection :global(.plan-option) { min-height: 93px; padding: 16px; }
 .rsvpSection :global(.plan-option strong) { color: #42322d; font-size: 14px; }
-.rsvpSection :global(.plan-option small) { color: #6e6158; font-size: 12px; }
+.rsvpSection :global(.plan-option small) { color: #6e6158; font-size: 13px; }
+.rsvpSection :global(.field-label small:not(.field-error)), .rsvpSection :global(.count-panel > p), .rsvpSection :global(.rsvp-submit-row small) { font-size: 13px; }
 .rsvpSection :global(.event-response) { padding: 19px; }
 .rsvpSection :global(.event-response.has-validation-error), .rsvpSection :global(.plan-fieldset.has-validation-error .plan-options) { border-color: #bf6f68; background: #fff8f5; }
 .rsvpSection :global(.plan-fieldset.has-validation-error .plan-options) { padding: 6px; border: 1px solid #bf6f68; border-radius: 13px; }
-.rsvpSection :global(.field-error), .rsvpSection :global(.event-inline-error) { display: block; margin: 8px 0 0; color: #963a3b; font-size: 12px; font-weight: 750; line-height: 1.5; }
+.rsvpSection :global(.field-error), .rsvpSection :global(.event-inline-error) { display: block; margin: 8px 0 0; color: #963a3b; font-size: 14px; font-weight: 750; line-height: 1.5; }
 .rsvpSection :global(.field-label input[aria-invalid="true"]) { border-color: #b95857; }
 .rsvpSection :global(.form-error) { padding: 10px 13px; border: 1px solid #e7bbb6; border-radius: 8px; background: #fff5f3; }
 .rsvpSection :global(.count-panel) { border: 1px solid #e5d4bb; background: #f8edd9; }
@@ -428,7 +429,7 @@
 .helpSection { display: flex; align-items: center; justify-content: space-between; gap: 36px; padding: 75px max(25px, calc((100vw - 1180px) / 2)); color: #4a1928; background: #edbd72; }
 .helpSection .eyebrow { color: #78302c; }
 .helpSection h2 { margin: 8px 0 10px; font-family: var(--editorial); font-size: clamp(40px, 4vw, 57px); font-weight: 600; letter-spacing: -.045em; line-height: 1.04; }
-.page[lang="hi"] .helpSection h2 { font-size: clamp(33px, 3.6vw, 48px); letter-spacing: -.02em; }
+.page[lang="hi"] .helpSection h2 { font-size: clamp(33px, 3.6vw, 48px); letter-spacing: -.02em; line-height: 1.3; }
 .helpSection p:not(.eyebrow) { max-width: 590px; margin: 0 0 14px; color: #5b3a30; font-size: 14px; line-height: 1.65; }
 .helpSection strong { font-size: 13px; }
 .helpActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; flex: 0 0 auto; }
@@ -500,13 +501,16 @@
   .eventNumber { margin: 0; font-size: 28px; }
   .eventDate strong { font-size: 22px; }
   .page[lang="hi"] .eventDate strong { font-size: 19px; }
-  .eventDate > span:last-child { margin: 0 0 0 auto; font-size: 12px; }
+  .eventDate > span:last-child { margin: 0 0 0 auto; font-size: 14px; }
   .eventBody { padding: 17px 0 0; border: 0; }
   .eventBody h3 { margin-bottom: 16px; font-size: 35px; }
   .page[lang="hi"] .eventBody h3 { font-size: 29px; }
   .eventFacts { grid-template-columns: 1fr; gap: 14px; }
   .eventBody address, .entryNote { margin-left: 28px; }
   .eventExtras { gap: 13px; }
+  .eventActions { position: relative; }
+  .calendarAction { position: static; }
+  .calendarAction small { right: 0; width: auto; }
   .rsvpSection { padding: 74px 16px 83px; }
   .rsvpSection :global(.rsvp-card-shell) { padding: 26px 16px; border-radius: 15px; }
   .rsvpSection :global(.rsvp-heading h2) { font-size: 39px; }

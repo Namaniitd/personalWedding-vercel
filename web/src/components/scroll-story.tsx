@@ -36,7 +36,7 @@ export function ScrollStory({ locale, couple, events, token }: {
       <PalacePortal className={styles["story-portal"]} />
       <BotanicalSprig className={`${styles["story-sprig"]} ${styles["story-sprig-left"]}`} />
       <BotanicalSprig className={`${styles["story-sprig"]} ${styles["story-sprig-right"]}`} />
-      <div className={styles["story-topline"]}><span>{couple[locale]}</span><span>{locale === "hi" ? "हमारे साथ यादें बनाएँ ↓" : "LET THE STORY UNFOLD ↓"}</span></div>
+      <div className={styles["story-topline"]}><span>{couple[locale]}</span><span>{locale === "hi" ? "हमारी खुशियों में शामिल हों ↓" : "JOIN OUR CELEBRATION ↓"}</span></div>
       <div className={styles["story-captions"]}>
         {events.map((event, index) => <div className={styles["story-caption"]} data-story-caption={index} key={event.id}>
           <p className={styles["story-eyebrow"]}>{String(index + 1).padStart(2, "0")} <span aria-hidden="true">/</span> {locale === "hi" ? "हमारे साथ उत्सव मनाएँ" : "Celebrate with us"}</p>
@@ -46,13 +46,16 @@ export function ScrollStory({ locale, couple, events, token }: {
         </div>)}
       </div>
       <div className={styles["story-bottomline"]}>
-        <ol className={styles["story-chapters"]} aria-label={locale === "hi" ? "हमारे समारोह" : "The celebrations"}>
+        <ol className={styles["story-chapters"]} tabIndex={0} aria-label={locale === "hi" ? "हमारे समारोह" : "The celebrations"}>
           {events.map((event, index) => <li className={styles["story-chapter"]} data-story-chapter key={event.id}>
             <span className={styles["story-chapter-track"]} aria-hidden="true"><i /></span>
             <span><b>{String(index + 1).padStart(2, "0")}</b><span>{event.title[locale]}</span></span>
           </li>)}
         </ol>
-        <a className={styles["story-details"]} href="#schedule">{locale === "hi" ? "समारोहों की जानकारी" : "See your celebrations"}<span aria-hidden="true">↗</span></a>
+        <a className={styles["story-scroll"]} href="#teaser" aria-label={locale === "hi" ? "निमंत्रण की बाकी जानकारी नीचे देखें" : "Scroll to the rest of the invitation"}>
+          <span>{locale === "hi" ? "नीचे देखें" : "Scroll"}</span>
+          <svg aria-hidden="true" width="18" height="20" viewBox="0 0 18 20" fill="none"><path d="m4 5 5 5 5-5M4 11l5 5 5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </a>
       </div>
     </div>
   </section>;

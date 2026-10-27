@@ -110,10 +110,10 @@ function numericValue(value: string) {
 function invitationShareMessage(invitation: IssuedInvitation) {
   const householdName = invitation.householdName[invitation.preferredLocale];
   if (invitation.preferredLocale === "hi") {
-    return `प्रिय ${householdName}, आप हमारे साथ इस खुशी में शामिल होने के लिए सादर आमंत्रित हैं। अपने कार्यक्रम देखें और निजी निमंत्रण पर जवाब दें।\n\n${invitation.invitationUrl}\n\nकृपया यह लिंक केवल अपने परिवार में साझा करें।`;
+    return `प्रिय ${householdName},\n\nहमारे शुभ विवाह की खुशियों में आप सादर आमंत्रित हैं। समारोहों की जानकारी देखने और अपना जवाब देने के लिए नीचे दिया गया निजी निमंत्रण लिंक खोलें।\n\n${invitation.invitationUrl}\n\nकृपया यह लिंक केवल निमंत्रण में शामिल सदस्यों के साथ साझा करें।\n\nआपके साथ ये खुशियाँ बाँटने का इंतज़ार है!`;
   }
 
-  return `Dear ${householdName},\n\nYou are cordially invited to celebrate the joyous occasion of our wedding.\n\nPlease visit your personal invitation to view the event details and RSVP.\n\n💌 ${invitation.invitationUrl}\n\nKindly share this invitation link only with members of your household.\n\nWe look forward to celebrating this special occasion with you!`;
+  return `Dear ${householdName},\n\nWe would love you to join our wedding celebrations.\n\nOpen your personal invitation below to view the event details and let us know whether you can join us.\n\n💌 ${invitation.invitationUrl}\n\nPlease share this link only with the people on your invitation.\n\nWe look forward to celebrating with you!`;
 }
 
 async function copyText(value: string) {

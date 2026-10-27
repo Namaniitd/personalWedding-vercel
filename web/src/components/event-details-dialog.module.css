@@ -64,7 +64,7 @@
 .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px 24px; margin: 0; padding: 20px; border: 1px solid #e3cfb0; border-radius: 12px; background: #f8efdf; }
 .facts > div { min-width: 0; }
 .wide { grid-column: 1 / -1; }
-.facts dt { margin: 0 0 4px; color: #916044; font-size: 11px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.facts dt { margin: 0 0 4px; color: #916044; font-size: 12px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
 .facts dd { margin: 0; color: #47352d; font-size: 15px; font-weight: 700; line-height: 1.5; white-space: pre-line; }
 .dialog[lang="hi"] .facts dt { letter-spacing: 0; text-transform: none; }
 
@@ -93,7 +93,6 @@
   .header { gap: 12px; padding: 20px 18px 18px; }
   .content { padding: 20px 18px 24px; }
   .facts { gap: 14px 15px; padding: 17px 14px; }
-  .facts dd { font-size: 14px; }
   .footer { padding: 14px 18px; }
   .footer a, .footer button { flex: 1 1 100%; }
 }

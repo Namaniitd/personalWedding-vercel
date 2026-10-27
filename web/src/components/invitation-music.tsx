@@ -62,28 +62,28 @@ export function InvitationMusic({ token, locale, paused, active, ref }: { token:
   return <>
     <audio ref={audio} preload="none" loop hidden aria-hidden="true" />
     <span className={styles["controls-divider"]} aria-hidden="true" />
-    <button ref={toggleButton} type="button" onClick={enabled ? stop : start} title={`${INVITATION_MUSIC.title} · ${INVITATION_MUSIC.artist}`} aria-label={enabled ? (hi ? "संगीत बंद करें" : "Turn sound off") : (hi ? "राब्ता संगीत चलाएँ" : "Play Raabta music")} aria-pressed={enabled} aria-expanded={panelVisible} aria-controls="invitation-music-player">
+    <button ref={toggleButton} type="button" onClick={enabled ? stop : start} title={`${INVITATION_MUSIC.title} · ${INVITATION_MUSIC.artist}`} aria-label={enabled ? (hi ? "संगीत बंद करें" : "Turn music off") : (hi ? "‘राब्ता’ चलाएँ" : "Play Raabta")} aria-pressed={enabled} aria-expanded={panelVisible} aria-controls="invitation-music-player">
       <svg className={styles["music-icon"]} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="m11 5-6 5H2v4h3l6 5V5Z" />
         {enabled ? <><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14" /></> : <path d="m16 9 6 6m0-6-6 6" />}
       </svg>
-      {enabled ? (hi ? "संगीत चालू" : "Sound on") : (hi ? "संगीत बंद" : "Sound off")}
+      {enabled ? (hi ? "संगीत चालू" : "Music on") : (hi ? "संगीत बंद" : "Music off")}
     </button>
-    <span className={styles["scene-sr-only"]} role="status">{enabled && status === "playing" ? (hi ? "राब्ता · Havana The Band का वाद्य संगीत चल रहा है।" : "Playing Raabta, an instrumental cover by Havana The Band.") : ""}</span>
+    <span className={styles["scene-sr-only"]} role="status">{enabled && status === "playing" ? (hi ? "‘राब्ता’ की धुन बज रही है। प्रस्तुति: Havana The Band।" : "Playing Raabta, an instrumental cover by Havana The Band.") : ""}</span>
     {panelVisible && <aside className={styles["music-panel"]} id="invitation-music-player" aria-label={hi ? "राब्ता संगीत प्लेयर" : "Raabta music player"} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); stop(); } }}>
       <div className={styles["music-heading"]}>
         <div><strong>{hi ? "राब्ता · वाद्य संगीत" : INVITATION_MUSIC.title}</strong><span>{INVITATION_MUSIC.artist}</span></div>
-        <button type="button" onClick={stop} aria-label={hi ? "संगीत बंद करके प्लेयर बंद करें" : "Stop music and close player"}>×</button>
+        <button type="button" onClick={stop} aria-label={hi ? "संगीत और प्लेयर बंद करें" : "Stop music and close player"}>×</button>
       </div>
       <div className={styles["music-footer"]}>
-        <p role="status">{paused ? (hi ? "टीज़र के दौरान संगीत रुका है।" : "Music paused for the teaser.")
+        <p role="status">{paused ? (hi ? "टीज़र चलने के दौरान संगीत रुका रहेगा।" : "Music is paused while the teaser plays.")
           : !visible ? (hi ? "इस पेज पर लौटने पर संगीत फिर चलेगा।" : "Music resumes when you return to this tab.")
-          : status === "error" ? (hi ? "संगीत नहीं चल पाया। फिर कोशिश करें।" : "Music couldn’t start. Please retry.")
-          : status === "blocked" ? (hi ? "सुनने के लिए संगीत चलाएँ दबाएँ।" : "Tap Play music to listen.")
+          : status === "error" ? (hi ? "संगीत नहीं चल सका। कृपया फिर से कोशिश करें।" : "Music couldn’t play. Please try again.")
+          : status === "blocked" ? (hi ? "सुनने के लिए ‘संगीत चलाएँ’ दबाएँ।" : "Select ‘Play music’ to listen.")
           : status === "loading" ? (hi ? "संगीत लोड हो रहा है…" : "Loading music…")
           : (hi ? "संगीत रुका है।" : "Music is paused.")}</p>
-        {(status === "error" || status === "blocked" || (status === "paused" && visible && !paused)) && <button type="button" onClick={start}>{status === "error" ? (hi ? "फिर कोशिश करें" : "Retry") : (hi ? "संगीत चलाएँ" : "Play music")}</button>}
-        <a href={INVITATION_MUSIC.watchUrl} target="_blank" rel="noopener noreferrer">{hi ? "मूल रिकॉर्डिंग ↗" : "Original recording ↗"}</a>
+        {(status === "error" || status === "blocked" || (status === "paused" && visible && !paused)) && <button type="button" onClick={start}>{status === "error" ? (hi ? "फिर से कोशिश करें" : "Try again") : (hi ? "संगीत चलाएँ" : "Play music")}</button>}
+        <a href={INVITATION_MUSIC.watchUrl} target="_blank" rel="noopener noreferrer">{hi ? "YouTube पर सुनें ↗" : "Listen on YouTube ↗"}</a>
       </div>
     </aside>}
   </>;

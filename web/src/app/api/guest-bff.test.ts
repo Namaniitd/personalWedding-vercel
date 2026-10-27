@@ -85,12 +85,27 @@ describe("guest browser API boundary", () => {
     expect(valid.status).toBe(200);
     expect(valid.headers.get("content-type")).toContain("text/calendar");
     expect(valid.headers.get("cache-control")).toContain("no-store");
+    expect(await valid.text()).toContain("SUMMARY:Celebration\r\n");
     expect(backend.resolveBackendInvitation).toHaveBeenCalledWith(token);
 
     expect((await calendarPost(post("/api/calendar/celebration", { token }, { Origin: "https://attacker.example" }), context)).status).toBe(403);
     expect((await calendarPost(post("/api/calendar/celebration", { token, extra: true }), context)).status).toBe(400);
     backend.resolveBackendInvitation.mockResolvedValueOnce(null);
     expect((await calendarPost(post("/api/calendar/celebration", { token }), context)).status).toBe(404);
+  });
+
+  it("uses the requested calendar language without changing private invitation access", async () => {
+    const context = { params: Promise.resolve({ eventId: "celebration" }) };
+    const response = await calendarPost(post("/api/calendar/celebration", { token, locale: "hi" }), context);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(await response.text()).toContain("SUMMARY:समारोह\r\n");
+    expect(backend.resolveBackendInvitation).toHaveBeenCalledWith(token);
+
+    backend.resolveBackendInvitation.mockClear();
+    expect((await calendarPost(post("/api/calendar/celebration", { token, locale: "fr" }), context)).status).toBe(400);
+    expect((await calendarPost(post("/api/calendar/celebration", { token, locale: "hi" }, { Origin: "https://attacker.example" }), context)).status).toBe(403);
+    expect(backend.resolveBackendInvitation).not.toHaveBeenCalled();
   });
 
   it("returns a generic service error when the private API is unreachable", async () => {

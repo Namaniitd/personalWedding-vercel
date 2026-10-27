@@ -60,9 +60,11 @@ export function useScrollScenes(root: RefObject<HTMLDivElement | null>, active: 
         if (scene.story) {
           const count = scene.story.captions.length;
           const pinStart = scene.top - scene.story.inset;
-          storyVisible = count > 1 && position >= pinStart - 1 && position <= pinStart + scene.height - scene.story.height + 1;
+          // Move controls away before the story footer enters view, including a single event.
+          storyVisible = position + viewport > scene.top + scene.story.height / 2 && position + scene.story.inset < scene.top + scene.height;
           const progress = clamp((position - pinStart) / Math.max(1, scene.height - scene.story.height));
           const chapter = Math.min(count - 1, Math.floor(progress * count));
+          const chapterChanged = scene.element.dataset.chapter !== String(chapter);
           scene.element.dataset.chapter = String(chapter);
           scene.element.style.setProperty("--story-pan", `${((progress - .5) * -90 * amplitude).toFixed(2)}px`);
           scene.element.style.setProperty("--story-scale", `${(1.14 - progress * .07).toFixed(4)}`);
@@ -76,6 +78,18 @@ export function useScrollScenes(root: RefObject<HTMLDivElement | null>, active: 
             item.dataset.active = String(index === chapter);
             item.style.setProperty("--chapter-fill", `${count === 1 ? 1 : clamp(progress * count - index)}`);
           });
+          const currentChapter = scene.story.chapters[chapter];
+          const chapterList = currentChapter?.parentElement;
+          if (chapterChanged && currentChapter && chapterList) {
+            const listWidth = chapterList.clientWidth;
+            if (listWidth > 0) {
+              const itemStart = currentChapter.offsetLeft;
+              const itemEnd = itemStart + currentChapter.offsetWidth;
+              const visibleStart = chapterList.scrollLeft;
+              if (itemStart < visibleStart) chapterList.scrollLeft = itemStart;
+              else if (itemEnd > visibleStart + listWidth) chapterList.scrollLeft = itemEnd - listWidth;
+            }
+          }
         }
       }
       element!.dataset.storyVisible = String(storyVisible);
