@@ -78,7 +78,7 @@ const copy: Record<Locale, InviteCopy> = {
     brand: "Wedding invitation",
     privateInvitation: "A personal invitation",
     announcement: "Wedding update",
-    schedule: "Your events",
+    schedule: "Events",
     travel: "Travel",
     rsvp: "RSVP",
     help: "Contact",
@@ -88,49 +88,49 @@ const copy: Record<Locale, InviteCopy> = {
     date: "Wedding date",
     place: "Location",
     forHousehold: "Especially for",
-    privateNote: "This link is for your household. Please keep it private.",
+    privateNote: "This invitation link is for your family. Please share it only with the people on your invitation.",
     eventCount: (count) => `${count} ${count === 1 ? "celebration" : "celebrations"} in your invitation`,
-    rsvpNow: "Reply to invitation",
-    viewSchedule: "See your events",
+    rsvpNow: "Reply to your invitation",
+    viewSchedule: "View events",
     phoneFallback: "Prefer to reply by phone?",
     deadline: "Please RSVP by",
     scheduleEyebrow: "Plan your visit",
-    scheduleTitle: "Your celebrations",
-    scheduleLead: "These are the events included in your household’s invitation. Check the arrival time and venue before you travel.",
-    arrival: "Arrive",
+    scheduleTitle: "Celebration details",
+    scheduleLead: "Your family is invited to the celebrations below. Please check the arrival time and venue before you travel.",
+    arrival: "Arrival time",
     venue: "Venue",
     address: "Address",
     attire: "What to wear",
     entry: "On arrival",
     helpfulToKnow: "Good to know",
-    directions: "Directions",
+    directions: "Get directions",
     calendar: "Add to calendar",
-    calendarRetry: "Try calendar again",
+    calendarRetry: "Try again",
     calendarError: "The calendar file could not be downloaded. Please try again.",
     preparingCalendar: "Preparing…",
-    travelFallback: "Travel and stay",
+    travelFallback: "Travel and accommodation",
     update: "A note for guests",
     helpEyebrow: "Here to help",
-    helpTitle: "Questions about your visit?",
-    helpLead: "For travel, RSVP changes, or help on the day, contact your coordination desk.",
+    helpTitle: "Need help with your visit?",
+    helpLead: "For travel advice, changes to your reply, or help on the day, contact the coordination team.",
     call: "Call",
     whatsapp: "WhatsApp",
-    privacy: "Your response stays with the families",
-    privacyCopy: "Your RSVP helps us plan hospitality. Only the couple and their coordination team can see it; it is never used for marketing.",
-    footer: "We look forward to celebrating together.",
-    heroPhotoAlt: "The couple together in their pre-wedding photographs",
-    detailPhotoAlt: "Mehendi adorned hands, shown as decorative wedding photography",
-    blessingFallback: "Blessings for the journey",
+    privacy: "Your reply stays private",
+    privacyCopy: "Your reply helps the couple and coordination team prepare for your visit. Anyone with your personal link can also view it. It is never used for marketing.",
+    footer: "We look forward to celebrating with you.",
+    heroPhotoAlt: "The couple in their pre-wedding photographs",
+    detailPhotoAlt: "Hands decorated with mehendi",
+    blessingFallback: "Blessings for our new beginning",
     backToTop: "Back to top"
   },
   hi: {
     skip: "निमंत्रण की जानकारी पर जाएँ",
     brand: "विवाह निमंत्रण",
-    privateInvitation: "आपके लिए निजी निमंत्रण",
+    privateInvitation: "आपके लिए स्नेहभरा निमंत्रण",
     announcement: "विवाह संबंधी जानकारी",
-    schedule: "आपके समारोह",
+    schedule: "कार्यक्रम",
     travel: "यात्रा",
-    rsvp: "RSVP",
+    rsvp: "जवाब दें",
     help: "संपर्क",
     switchLanguage: "View in English",
     invitationLead: DEFAULT_INVITATION_LEAD.hi,
@@ -138,39 +138,39 @@ const copy: Record<Locale, InviteCopy> = {
     date: "विवाह की तिथि",
     place: "स्थान",
     forHousehold: "विशेष रूप से",
-    privateNote: "यह लिंक आपके परिवार के लिए है। कृपया इसे निजी रखें।",
+    privateNote: "यह निमंत्रण लिंक आपके परिवार के लिए है। कृपया इसे केवल निमंत्रण में शामिल सदस्यों के साथ साझा करें।",
     eventCount: (count) => `आपके निमंत्रण में ${new Intl.NumberFormat("hi-IN-u-nu-latn").format(count)} समारोह`,
-    rsvpNow: "अपना उत्तर दें",
-    viewSchedule: "समारोह देखें",
-    phoneFallback: "फ़ोन पर उत्तर देना चाहेंगे?",
-    deadline: "कृपया इस तिथि तक RSVP दें",
+    rsvpNow: "आने की जानकारी दें",
+    viewSchedule: "कार्यक्रम देखें",
+    phoneFallback: "फ़ोन पर जवाब देना चाहेंगे?",
+    deadline: "जवाब देने की अंतिम तिथि:",
     scheduleEyebrow: "यात्रा की योजना",
-    scheduleTitle: "आपके समारोह",
+    scheduleTitle: "समारोहों की जानकारी",
     scheduleLead: "आपके परिवार के निमंत्रण में ये समारोह शामिल हैं। यात्रा से पहले पहुँचने का समय और स्थान देख लें।",
     arrival: "पहुँचने का समय",
     venue: "स्थल",
     address: "पता",
-    attire: "पहनावा",
+    attire: "क्या पहनें",
     entry: "पहुँचने पर",
-    helpfulToKnow: "ध्यान देने योग्य",
+    helpfulToKnow: "ज़रूरी जानकारी",
     directions: "रास्ता देखें",
     calendar: "कैलेंडर में जोड़ें",
-    calendarRetry: "फिर प्रयास करें",
-    calendarError: "कैलेंडर फ़ाइल डाउनलोड नहीं हुई। कृपया फिर प्रयास करें।",
+    calendarRetry: "फिर कोशिश करें",
+    calendarError: "कैलेंडर फ़ाइल डाउनलोड नहीं हो सकी। कृपया फिर कोशिश करें।",
     preparingCalendar: "तैयार हो रहा है…",
-    travelFallback: "यात्रा एवं ठहराव",
+    travelFallback: "यात्रा और ठहरने की जानकारी",
     update: "अतिथियों के लिए सूचना",
     helpEyebrow: "हम आपकी सहायता के लिए हैं",
-    helpTitle: "यात्रा के बारे में प्रश्न हैं?",
-    helpLead: "यात्रा, RSVP में बदलाव या समारोह के दिन सहायता के लिए समन्वय डेस्क से संपर्क करें।",
+    helpTitle: "आने की तैयारी में कोई मदद चाहिए?",
+    helpLead: "यात्रा, अपने जवाब में बदलाव या समारोह के दिन किसी मदद के लिए आयोजन टीम से संपर्क करें।",
     call: "कॉल करें",
     whatsapp: "WhatsApp",
-    privacy: "आपका उत्तर परिवारों तक सीमित है",
-    privacyCopy: "आपका RSVP हमें आतिथ्य की योजना बनाने में मदद करता है। इसे केवल जोड़ा और उनकी समन्वय टीम देख सकती है; इसका उपयोग प्रचार के लिए नहीं होता।",
-    footer: "हम साथ मिलकर उत्सव मनाने की प्रतीक्षा कर रहे हैं।",
-    heroPhotoAlt: "विवाह पूर्व की तस्वीरों में साथ वर और वधू",
-    detailPhotoAlt: "मेहंदी लगे हाथों की सजावटी विवाह तस्वीर",
-    blessingFallback: "मंगल यात्रा के लिए आशीर्वाद",
+    privacy: "आपका जवाब निजी रहेगा",
+    privacyCopy: "आपका जवाब वर-वधू और आयोजन टीम को आपके स्वागत की तैयारी में मदद करता है। आपका निजी लिंक जिनके पास होगा, वे भी आपका जवाब देख सकेंगे। इसका उपयोग प्रचार के लिए नहीं किया जाता।",
+    footer: "आपके साथ इन खुशियों को बाँटने का इंतज़ार है।",
+    heroPhotoAlt: "शादी से पहले की तस्वीरों में साथ नज़र आते वर-वधू",
+    detailPhotoAlt: "मेहंदी से सजे हाथों की तस्वीर",
+    blessingFallback: "नई शुरुआत के लिए आशीर्वाद",
     backToTop: "ऊपर जाएँ"
   }
 };
@@ -210,7 +210,7 @@ function CalendarDownload({ event, locale, token, labels, publicSide }: { event:
       const response = await fetch(`/api/calendar/${encodeURIComponent(event.id)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(publicSide ? { publicSide } : { token })
+        body: JSON.stringify(publicSide ? { publicSide, locale } : { token, locale })
       });
       if (!response.ok) throw new Error("Calendar download failed");
       const url = URL.createObjectURL(await response.blob());
@@ -306,10 +306,10 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
   const isPublic = invitation.kind === "public";
   const labels: InviteCopy = isPublic ? { ...copy[locale],
     privateInvitation: locale === "hi" ? "आप सादर आमंत्रित हैं" : "You are warmly invited",
-    forHousehold: locale === "hi" ? "हमारे साथ उत्सव मनाएं" : "Celebrate with us",
-    privateNote: locale === "hi" ? "इस सार्वजनिक लिंक से कोई भी RSVP कर सकता है। अपने परिवार की ओर से जवाब दें।" : "Anyone with this public link can RSVP. Please reply once for your household.",
-    scheduleLead: locale === "hi" ? "नीचे दिए समारोहों में शामिल होने के लिए RSVP करें। यात्रा से पहले समय और स्थान देख लें।" : "RSVP for the celebrations below. Check the arrival time and venue before you travel.",
-    privacyCopy: locale === "hi" ? "आपका RSVP और संपर्क नंबर केवल समन्वय टीम को दिखाई देता है। अपना निजी RSVP लिंक परिवार में ही रखें।" : "Your RSVP and contact number are visible only to the coordination team. Keep your personal RSVP link within your household."
+    forHousehold: locale === "hi" ? "हमारे साथ खुशियाँ मनाएँ" : "Celebrate with us",
+    privateNote: locale === "hi" ? "इस लिंक से कोई भी निमंत्रण का जवाब दे सकता है। कृपया अपने पूरे परिवार की ओर से एक ही जवाब भेजें।" : "Anyone with this link can reply. Please send one reply for your family.",
+    scheduleLead: locale === "hi" ? "कृपया बताएँ कि आप नीचे दिए किन समारोहों में शामिल होंगे। यात्रा से पहले पहुँचने का समय और स्थान देख लें।" : "Let us know which celebrations you’ll join below. Please check the arrival time and venue before you travel.",
+    privacyCopy: locale === "hi" ? "आयोजन टीम आपके जवाब और संपर्क नंबर का उपयोग आपके स्वागत की तैयारी के लिए करती है। आपका निजी लिंक जिनके पास होगा, वे भी यह जानकारी देख सकेंगे। कृपया इसे केवल अपने परिवार में साझा करें।" : "The coordination team uses your reply and contact number to plan your visit. Anyone with your personal reply link can view them, so share it only with your family."
   } : copy[locale];
   const travel = wedding.guestContent?.travel;
   const hero = wedding.guestContent?.hero;
@@ -329,7 +329,7 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
       <a className={styles.skipLink} href="#invitation">{labels.skip}</a>
       <header className={styles.header} id="top" data-invitation-header>
         <a href="#top" className={styles.brand} aria-label={`${wedding.couple[locale]} · ${labels.brand}`}><span className={styles.monogram} aria-hidden="true">{initials.split("").join("&")}</span><span>{labels.brand}<small lang="hi">शुभ विवाह</small></span></a>
-        <nav className={styles.headerNav} aria-label={locale === "hi" ? "मुख्य नेविगेशन" : "Main navigation"}>
+        <nav className={styles.headerNav} aria-label={locale === "hi" ? "मुख्य मेन्यू" : "Main navigation"}>
           <a href="#schedule">{labels.schedule}</a>
           <a href="#rsvp">{labels.rsvp}</a>
           <a href="#help">{labels.help}</a>
@@ -355,7 +355,7 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
               <h1 id="invitation-title" tabIndex={-1}><CoupleNames names={wedding.couple[locale]} locale={locale} parents={hero?.parents} /></h1>
               <p className={styles.heroBlessing}>{labels.blessing}</p>
               {hero?.region && <p className={styles.heroRegion}>{hero.region[locale]}</p>}
-              <a className={experienceStyles["hero-scroll-cue"]} href={events.length ? "#celebration-story" : "#schedule"}><span aria-hidden="true">↓</span>{locale === "hi" ? "आगे बढ़ें, यादें बनाएँ" : "Scroll to unfold our celebration"}</a>
+              <a className={experienceStyles["hero-scroll-cue"]} href={events.length ? "#celebration-story" : "#schedule"}><span aria-hidden="true">↓</span>{locale === "hi" ? "समारोहों की झलक देखें" : "Explore the celebrations"}</a>
             </div>
             <div className={styles.heroDetails}>
               <div className={styles.heroFacts}>
@@ -460,7 +460,7 @@ export function WeddingInvite({ resolved }: { resolved: ResolvedInvitation }) {
         <div><p><strong>{labels.privacy}</strong><br />{labels.privacyCopy}</p><a href="#top">{labels.backToTop} ↑</a></div>
       </footer>
 
-      <nav className={styles.mobileNav} aria-label={locale === "hi" ? "निमंत्रण नेविगेशन" : "Invitation navigation"}>
+      <nav className={styles.mobileNav} aria-label={locale === "hi" ? "निमंत्रण का मेन्यू" : "Invitation navigation"}>
         <a href="#schedule"><Icon name="calendar" size={18} /><span>{labels.schedule}</span></a>
         <a href="#rsvp" className={styles.mobileRsvp}><Icon name="message" size={18} /><span>{labels.rsvp}</span></a>
         <a href="#help"><Icon name="phone" size={18} /><span>{labels.help}</span></a>

@@ -16,7 +16,7 @@ export const viewport: Viewport = {
 };
 
 const shareTitle = "Naman & Neha | Wedding Invitation";
-const shareDescription = "Open your private invitation link for event details and RSVP.";
+const shareDescription = "Open your personal invitation to view event details and send your reply.";
 
 export function generateMetadata(): Metadata {
   // Messaging apps may preview a bearer invitation URL. Keep every preview

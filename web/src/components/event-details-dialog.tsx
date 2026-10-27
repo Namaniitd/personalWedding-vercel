@@ -8,9 +8,9 @@ import styles from "./event-details-dialog.module.css";
 
 const copy = {
   en: {
-    celebration: "Your celebration",
+    celebration: "Event details",
     date: "Date",
-    time: "Time",
+    time: "Start time",
     arrival: "Arrival time",
     venue: "Venue",
     address: "Address",
@@ -18,19 +18,19 @@ const copy = {
     attire: "What to wear",
     practical: "Good to know",
     close: "Close event details",
-    directions: "Directions",
+    directions: "Get directions",
     back: "Back to invitation"
   },
   hi: {
-    celebration: "आपका समारोह",
+    celebration: "समारोह की जानकारी",
     date: "तिथि",
-    time: "समय",
+    time: "शुरू होने का समय",
     arrival: "पहुँचने का समय",
     venue: "स्थल",
     address: "पता",
     entry: "पहुँचने पर",
-    attire: "पहनावा",
-    practical: "ध्यान देने योग्य",
+    attire: "क्या पहनें",
+    practical: "ज़रूरी जानकारी",
     close: "समारोह की जानकारी बंद करें",
     directions: "रास्ता देखें",
     back: "निमंत्रण पर वापस जाएँ"

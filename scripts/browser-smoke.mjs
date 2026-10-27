@@ -238,13 +238,13 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       await page.getByRole("button", { name: "View in Hindi", exact: true }).click();
       await page.waitForFunction(() => document.documentElement.lang === "hi");
       await page.getByRole("button", { name: "View in English", exact: true }).click();
-      await page.getByRole("button", { name: "Submit RSVP", exact: true }).click();
-      await page.locator(".form-error").filter({ hasText: "Please tell us who" }).waitFor();
-      await page.getByRole("textbox", { name: /Who is completing this RSVP/ }).fill("Browser Guest Respondent");
-      await page.getByRole("button", { name: "Submit RSVP", exact: true }).click();
-      await page.locator(".form-error").filter({ hasText: "Please choose your family" }).waitFor();
-      await page.getByText("We plan to attend", { exact: true }).click();
-      await page.getByRole("button", { name: "Submit RSVP", exact: true }).click();
+      await page.getByRole("button", { name: "Send reply", exact: true }).click();
+      await page.locator(".form-error").filter({ hasText: "Please enter your name" }).waitFor();
+      await page.getByRole("textbox", { name: /Name of the person replying/ }).fill("Browser Guest Respondent");
+      await page.getByRole("button", { name: "Send reply", exact: true }).click();
+      await page.locator(".form-error").filter({ hasText: "Please choose a reply for your family." }).waitFor();
+      await page.getByText("We’ll be there", { exact: true }).click();
+      await page.getByRole("button", { name: "Send reply", exact: true }).click();
       await page.locator(".form-error").filter({ hasText: "Please answer yes or no" }).waitFor();
       for (const title of eventTitles) {
         const event = page.locator(".event-response").filter({ has: page.getByRole("heading", { name: title, exact: true }) });
@@ -258,7 +258,7 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
     });
     await run("guest RSVP, welcome pass, reload and calendar", async () => {
       const pending = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/rsvp" && response.request().method() === "POST");
-      await page.getByRole("button", { name: "Submit RSVP", exact: true }).click();
+      await page.getByRole("button", { name: "Send reply", exact: true }).click();
       const response = await pending;
       assert.equal(response.status(), 200, "The guest RSVP must save.");
       const result = await response.json();
@@ -266,10 +266,10 @@ export async function runWeddingBrowserSmoke(page, { password, origin = DISPOSAB
       assert.ok(/^shaadi-entry:v1:[A-Za-z0-9_-]{43}$/.test(passPayload ?? ""), "An attending RSVP must receive an opaque welcome pass.");
       currentUpdatedAt = result.updatedAt;
       attendingInput = { respondentName: "Browser Guest Respondent", status: "attending", attendances: eventIds.map((eventId) => ({ eventId, attending: true, adults: 2, children: 1 })), comfortNote: note };
-      await page.getByRole("heading", { name: "We’ve received your response", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "We’ve received your reply", exact: true }).waitFor();
       assert.equal(await page.locator(".response-summary li").count(), 2, "The confirmation must list both selected celebrations.");
       await page.reload({ waitUntil: "domcontentloaded" });
-      await page.getByRole("heading", { name: "We’ve received your response", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "We’ve received your reply", exact: true }).waitFor();
       await page.locator(".entry-pass-qr").waitFor();
       const downloaded = page.waitForEvent("download");
       await page.getByRole("button", { name: `Add to calendar: ${eventTitles[0]}`, exact: true }).click();

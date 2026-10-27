@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { EntryPass } from "@/components/entry-pass";
 import { parseEntryPassPayload } from "@/lib/entry-pass";
 import { contactNumberSchema, defaultAttendances, validateRSVPForInvitation } from "@/lib/rsvp";
+import { rsvpErrorMessage } from "@/lib/rsvp-messages";
 import type { AttendanceInput, EntryPass as EntryPassRecord, Invitation, Locale, RSVPInput, RSVPRecord, RSVPStatus, WeddingEvent } from "@/lib/types";
 
 type FormCopy = {
@@ -60,47 +61,47 @@ type FormCopy = {
 const formCopy: Record<Locale, FormCopy> = {
   en: {
     eyebrow: "RSVP",
-    title: "Tell us your family’s plan",
-    intro: "One family member may reply for everyone on this invitation.",
-    respondent: "Who is completing this RSVP?",
-    respondentHelp: "We will use this only if we need to clarify your response.",
-    currentPlan: "What is your family’s current plan?",
-    attending: "We plan to attend",
-    attendingDescription: "Choose the celebrations you will join below.",
-    declined: "We will be unable to attend",
+    title: "Will you be joining us?",
+    intro: "One family member can reply for everyone on this invitation.",
+    respondent: "Name of the person replying",
+    respondentHelp: "We’ll use this name if we need to ask about your reply.",
+    currentPlan: "Your reply",
+    attending: "We’ll be there",
+    attendingDescription: "Let us know below when you’ll join us.",
+    declined: "We won’t be able to attend",
     declinedDescription: "Thank you for letting us know.",
-    confirming: "We will confirm soon",
-    confirmingDescription: "We will follow up before the RSVP deadline.",
+    confirming: "We’ll confirm soon",
+    confirmingDescription: "Please let us know before the reply deadline.",
     eventQuestion: "Will your family attend this celebration?",
     eventRequired: "Please choose yes or no for this celebration.",
     yes: "Yes, we’ll be there",
-    no: "Not this one",
+    no: "No, we can’t attend this one",
     adults: "Adults",
     children: "Children",
     limit: (adults, children) => `This invitation includes up to ${adults} adult${adults === 1 ? "" : "s"} and ${children} child${children === 1 ? "" : "ren"}.`,
     comfort: "Anything we should know to make your visit comfortable?",
-    comfortPlaceholder: "Dietary, accessibility, or practical assistance (optional)",
-    medicalNote: "Please share only what the hospitality team needs—no detailed medical information.",
+    comfortPlaceholder: "Food preferences, accessibility needs, or other help (optional)",
+    medicalNote: "Please share only what the coordination team needs to help you. Detailed medical information isn’t needed.",
     declineMessage: (coupleName) => `Would you like to send ${coupleName} a message?`,
     declineMessagePlaceholder: "Your good wishes, or anything you’d like us to know (optional)",
-    declineMessageHelp: "No explanation is needed—we’re grateful you let us know.",
-    updateHelp: (date) => `You may update this response until ${date}.`,
-    submit: "Submit RSVP",
-    updating: "Update RSVP",
-    saving: "Saving your RSVP…",
-    errorName: "Please tell us who is completing this RSVP.",
-    errorPlan: "Please choose your family’s current plan.",
-    errorEvent: "Please select at least one celebration your family plans to attend.",
-    errorUnanswered: "Please answer yes or no for every celebration so the families can plan seating and meals.",
-    errorGeneric: "We could not save your response. Please try again or contact the coordination desk.",
-    successTitle: "We’ve received your response",
+    declineMessageHelp: "No explanation is needed. Thank you for letting us know.",
+    updateHelp: (date) => `You can update your reply until ${date}.`,
+    submit: "Send reply",
+    updating: "Update reply",
+    saving: "Saving your reply…",
+    errorName: "Please enter your name (at least 2 characters).",
+    errorPlan: "Please choose a reply for your family.",
+    errorEvent: "Please choose at least one celebration you’ll attend.",
+    errorUnanswered: "Please answer yes or no for each celebration so we can arrange seating and meals.",
+    errorGeneric: "We couldn’t save your reply. Please try again or contact the coordination team.",
+    successTitle: "We’ve received your reply",
     successAttending: "We’re looking forward to celebrating with you.",
     successDeclined: "We’ll miss you. Thank you for letting us know.",
-    successConfirming: "We’ve marked your response as ‘will confirm’. Please update it before the deadline.",
-    successHelp: (date) => `Need to make a change? You can update your RSVP until ${date}.`,
-    edit: "Edit response",
+    successConfirming: "Thank you. Please let us know before the deadline whether you can join us.",
+    successHelp: (date) => `You can update your reply until ${date}.`,
+    edit: "Update reply",
     call: "Call",
-    summary: "Your response",
+    summary: "Your reply",
     selectedEvents: "Celebrations selected",
     selectedCount: (count) => `${count} ${count === 1 ? "celebration" : "celebrations"} selected`,
     guestCount: (adults, children) => `${adults} ${adults === 1 ? "adult" : "adults"} · ${children} ${children === 1 ? "child" : "children"}`,
@@ -108,53 +109,53 @@ const formCopy: Record<Locale, FormCopy> = {
     increase: (label) => `Increase ${label}`
   },
   hi: {
-    eyebrow: "RSVP",
-    title: "अपने परिवार की योजना बताएं",
+    eyebrow: "आने की जानकारी",
+    title: "बताएँ, क्या आपका परिवार शामिल हो पाएगा?",
     intro: "परिवार का एक सदस्य इस निमंत्रण में शामिल सभी लोगों की ओर से जवाब दे सकता है।",
-    respondent: "यह RSVP कौन भर रहा है?",
-    respondentHelp: "जरूरत पड़ने पर आपके उत्तर की पुष्टि के लिए ही इसका उपयोग किया जाएगा।",
-    currentPlan: "आपके परिवार की वर्तमान योजना क्या है?",
-    attending: "हम शामिल होने की योजना बना रहे हैं",
-    attendingDescription: "नीचे वे समारोह चुनें जिनमें आप शामिल होंगे।",
-    declined: "क्षमा करें, हम शामिल नहीं हो पाएँगे",
+    respondent: "परिवार की ओर से जवाब देने वाले सदस्य का नाम",
+    respondentHelp: "आपके जवाब के बारे में कुछ पूछना हुआ, तो हम आपसे संपर्क करेंगे।",
+    currentPlan: "आपका जवाब",
+    attending: "हम शामिल होंगे",
+    attendingDescription: "नीचे हर समारोह के लिए अपना जवाब दें।",
+    declined: "हम शामिल नहीं हो पाएँगे",
     declinedDescription: "हमें बताने के लिए धन्यवाद।",
-    confirming: "हम जल्द पुष्टि करेंगे",
-    confirmingDescription: "RSVP की अंतिम तिथि से पहले हम आपसे संपर्क करेंगे।",
+    confirming: "हम जल्द पक्का करके बताएँगे",
+    confirmingDescription: "कृपया जवाब देने की अंतिम तिथि से पहले हमें बता दें।",
     eventQuestion: "क्या आपका परिवार इस समारोह में शामिल होगा?",
     eventRequired: "कृपया इस समारोह के लिए हाँ या नहीं चुनें।",
-    yes: "हाँ, हम आएंगे",
-    no: "इस समारोह में नहीं",
+    yes: "हाँ, हम आएँगे",
+    no: "नहीं, इस समारोह में नहीं आ पाएँगे",
     adults: "वयस्क",
     children: "बच्चे",
-    limit: (adults, children) => `इस निमंत्रण में अधिकतम ${adults} वयस्क और ${children} बच्चे शामिल हैं।`,
-    comfort: "आपकी सुविधा के लिए हमें कुछ जानना चाहिए?",
-    comfortPlaceholder: "खान-पान, सुलभता या व्यावहारिक सहायता (वैकल्पिक)",
-    medicalNote: "कृपया केवल वही जानकारी दें जिसकी आतिथ्य टीम को आवश्यकता है—विस्तृत चिकित्सा जानकारी न लिखें।",
+    limit: (adults, children) => `इस निमंत्रण पर अधिकतम ${adults} वयस्क और ${children} ${children === 1 ? "बच्चा" : "बच्चे"} आ सकते हैं।`,
+    comfort: "आपकी सुविधा के लिए हमें किसी खास बात का ध्यान रखना चाहिए?",
+    comfortPlaceholder: "खान-पान की ज़रूरत, आने-जाने में मदद या कोई और सहायता (वैकल्पिक)",
+    medicalNote: "कृपया केवल उतनी जानकारी दें जितनी आयोजन टीम को आपकी सहायता के लिए ज़रूरी है। बीमारी या इलाज की पूरी जानकारी न लिखें।",
     declineMessage: (coupleName) => `क्या आप ${coupleName} के लिए कोई संदेश छोड़ना चाहेंगे?`,
     declineMessagePlaceholder: "अपनी शुभकामनाएँ या कोई बात जो आप हमें बताना चाहें (वैकल्पिक)",
-    declineMessageHelp: "कारण बताने की कोई आवश्यकता नहीं है—हमें सूचित करने के लिए धन्यवाद।",
-    updateHelp: (date) => `आप ${date} तक यह उत्तर बदल सकते हैं।`,
-    submit: "RSVP भेजें",
-    updating: "RSVP संशोधित करें",
-    saving: "आपका RSVP सुरक्षित किया जा रहा है…",
-    errorName: "कृपया बताएं कि यह RSVP कौन भर रहा है।",
-    errorPlan: "कृपया अपने परिवार की वर्तमान योजना चुनें।",
+    declineMessageHelp: "कारण बताना ज़रूरी नहीं है। हमें बताने के लिए धन्यवाद।",
+    updateHelp: (date) => `आप ${date} तक अपना जवाब बदल सकते हैं।`,
+    submit: "जवाब भेजें",
+    updating: "जवाब बदलें",
+    saving: "आपका जवाब दर्ज किया जा रहा है…",
+    errorName: "कृपया अपना नाम लिखें (कम-से-कम 2 अक्षर)।",
+    errorPlan: "कृपया अपने परिवार के आने के बारे में एक विकल्प चुनें।",
     errorEvent: "कृपया कम-से-कम एक समारोह चुनें जिसमें आपका परिवार शामिल होगा।",
-    errorUnanswered: "कृपया हर समारोह के लिए हाँ या नहीं चुनें, ताकि परिवार बैठक और भोजन की व्यवस्था कर सकें।",
-    errorGeneric: "आपका उत्तर सुरक्षित नहीं हो सका। कृपया फिर प्रयास करें या समन्वय डेस्क से संपर्क करें।",
-    successTitle: "हमें आपका उत्तर मिल गया है",
-    successAttending: "हम आपके साथ उत्सव मनाने की प्रतीक्षा कर रहे हैं।",
+    errorUnanswered: "कृपया हर समारोह के लिए हाँ या नहीं चुनें, ताकि हम बैठने और भोजन की व्यवस्था कर सकें।",
+    errorGeneric: "आपका जवाब दर्ज नहीं हो सका। कृपया दोबारा कोशिश करें या आयोजन टीम से संपर्क करें।",
+    successTitle: "हमें आपका जवाब मिल गया है",
+    successAttending: "आपके साथ ये खुशियाँ बाँटने का इंतज़ार रहेगा।",
     successDeclined: "आपकी कमी महसूस होगी। हमें बताने के लिए धन्यवाद।",
-    successConfirming: "हमने आपका उत्तर ‘पुष्टि करेंगे’ के रूप में दर्ज कर लिया है। कृपया अंतिम तिथि से पहले अपडेट करें।",
-    successHelp: (date) => `कुछ बदलना है? आप ${date} तक अपना RSVP संशोधित कर सकते हैं।`,
-    edit: "उत्तर संशोधित करें",
+    successConfirming: "धन्यवाद। कृपया अंतिम तिथि से पहले बता दें कि आप शामिल हो पाएँगे या नहीं।",
+    successHelp: (date) => `आप ${date} तक अपना जवाब बदल सकते हैं।`,
+    edit: "जवाब बदलें",
     call: "कॉल करें",
-    summary: "आपका उत्तर",
+    summary: "आपका जवाब",
     selectedEvents: "चुने हुए समारोह",
-    selectedCount: (count) => `${new Intl.NumberFormat("hi-IN-u-nu-latn", { useGrouping: false }).format(count)} समारोह चुने गए`,
+    selectedCount: (count) => `${new Intl.NumberFormat("hi-IN-u-nu-latn", { useGrouping: false }).format(count)} ${count === 1 ? "समारोह चुना गया" : "समारोह चुने गए"}`,
     guestCount: (adults, children) => `${new Intl.NumberFormat("hi-IN-u-nu-latn", { useGrouping: false }).format(adults)} वयस्क · ${new Intl.NumberFormat("hi-IN-u-nu-latn", { useGrouping: false }).format(children)} ${children === 1 ? "बच्चा" : "बच्चे"}`,
-    decrease: (label) => `${label} की संख्या घटाएं`,
-    increase: (label) => `${label} की संख्या बढ़ाएं`
+    decrease: (label) => `${label} की संख्या घटाएँ`,
+    increase: (label) => `${label} की संख्या बढ़ाएँ`
   }
 };
 
@@ -286,7 +287,7 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
         ? copy.errorUnanswered
         : error?.kind === "event"
           ? copy.errorEvent
-          : error?.message ?? null;
+          : error?.message ? rsvpErrorMessage(error.message, locale) : null;
 
   // Confirming an RSVP swaps the whole card, so move the reading position to
   // the confirmation instead of leaving it on a control that no longer exists.
@@ -401,7 +402,7 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
     };
     const validation = validateRSVPForInvitation(payload, { invitation, events });
     if (!validation.ok) {
-      setError({ kind: "custom", message: validation.message });
+      setError({ kind: "custom", message: rsvpErrorMessage(validation.message, locale) });
       return;
     }
 
@@ -442,7 +443,7 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
       setSubmitted(record);
       setHasExistingResponse(true);
     } catch (reason) {
-      setError({ kind: "custom", message: reason instanceof Error && reason.message ? reason.message : copy.errorGeneric });
+      setError({ kind: "custom", message: reason instanceof Error && reason.message ? rsvpErrorMessage(reason.message, locale) : copy.errorGeneric });
     } finally {
       setIsSaving(false);
     }
@@ -477,13 +478,13 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
           />
         )}
         {personalUrl && <div className="response-summary personal-invitation-link">
-          <strong>{locale === "hi" ? "अपना निजी RSVP लिंक सुरक्षित रखें" : "Save your personal RSVP link"}</strong>
-          <p>{locale === "hi" ? "अपना उत्तर देखने या बदलने के लिए इस लिंक का उपयोग करें। इसे केवल अपने परिवार में साझा करें।" : "Use this link to return to your response and make changes. Share it only with your household."}</p>
-          <label className="field-label"><span className="sr-only">{locale === "hi" ? "निजी RSVP लिंक" : "Personal RSVP link"}</span><input readOnly value={personalUrl} onFocus={(event) => event.target.select()} /></label>
+          <strong>{locale === "hi" ? "अपने जवाब का निजी लिंक सँभालकर रखें" : "Keep your personal reply link"}</strong>
+          <p>{locale === "hi" ? "अपना जवाब देखने या बदलने के लिए इस लिंक का उपयोग करें। इसे केवल अपने परिवार में साझा करें।" : "Use this link to view or update your reply. Share it only with the people on your invitation."}</p>
+          <label className="field-label"><span className="sr-only">{locale === "hi" ? "आपके जवाब का निजी लिंक" : "Personal reply link"}</span><input readOnly value={personalUrl} onFocus={(event) => event.target.select()} /></label>
           <div className="success-actions"><button type="button" className="button button-secondary" onClick={async () => {
             try { await navigator.clipboard.writeText(personalUrl); setLinkNotice(locale === "hi" ? "लिंक कॉपी हो गया।" : "Link copied."); }
             catch { setLinkNotice(locale === "hi" ? "ऊपर दिए लिंक को चुनकर कॉपी करें।" : "Select and copy the link above."); }
-          }}>{locale === "hi" ? "लिंक कॉपी करें" : "Copy link"}</button><a className="text-link" href={personalUrl}>{locale === "hi" ? "निजी निमंत्रण खोलें" : "Open personal invitation"}</a></div>
+          }}>{locale === "hi" ? "लिंक कॉपी करें" : "Copy link"}</button><a className="text-link" href={personalUrl}>{locale === "hi" ? "निजी निमंत्रण खोलें" : "Open your invitation"}</a></div>
           {linkNotice && <p role="status">{linkNotice}</p>}
         </div>}
         {attendedEvents.length > 0 && (
@@ -526,7 +527,7 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
       <div className="rsvp-heading">
         <p className="section-kicker">{copy.eyebrow}</p>
         <h2>{copy.title}</h2>
-        <p>{isPublic ? locale === "hi" ? "अपने परिवार की ओर से जवाब दें। जवाब देने के बाद आपको अपना निजी RSVP लिंक मिलेगा।" : "Reply for your household. After submitting, you’ll receive a personal link to view or update your RSVP." : copy.intro}</p>
+        <p>{isPublic ? locale === "hi" ? "अपने परिवार की ओर से जवाब दें। जवाब भेजने के बाद आपको उसे देखने या बदलने के लिए एक निजी लिंक मिलेगा।" : "Reply for your family. You’ll receive a personal link to view or update your reply." : copy.intro}</p>
       </div>
 
       <label className="field-label">
@@ -550,8 +551,8 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
 
       <label className="field-label">
         <span>{locale === "hi" ? "संपर्क नंबर" : "Contact number"}{!isPublic && (locale === "hi" ? " (वैकल्पिक)" : " (optional)")}</span>
-        <input ref={contactInputRef} type="tel" autoComplete="tel" inputMode="tel" maxLength={40} value={form.contactNumber ?? ""} required={isPublic} onChange={(event) => { setError(null); setForm((current) => ({ ...current, contactNumber: event.target.value })); }} placeholder={locale === "hi" ? "देश कोड सहित नंबर" : "Number with country code"} aria-describedby="rsvp-contact-help" />
-        <small id="rsvp-contact-help">{locale === "hi" ? "जरूरत पड़ने पर RSVP के बारे में संपर्क करने के लिए।" : "So the coordination team can contact you about your RSVP."}</small>
+        <input ref={contactInputRef} type="tel" autoComplete="tel" inputMode="tel" maxLength={40} value={form.contactNumber ?? ""} required={isPublic} onChange={(event) => { setError(null); setForm((current) => ({ ...current, contactNumber: event.target.value })); }} placeholder={locale === "hi" ? "देश के कोड के साथ फ़ोन नंबर" : "Phone number with country code"} aria-describedby="rsvp-contact-help" />
+        <small id="rsvp-contact-help">{locale === "hi" ? "ताकि ज़रूरत पड़ने पर आयोजन टीम आपके जवाब के बारे में आपसे संपर्क कर सके।" : "So the coordination team can contact you about your reply."}</small>
       </label>
 
       <fieldset className={`plan-fieldset ${showValidation && !selectedStatus ? "has-validation-error" : ""}`} ref={planFieldsetRef} aria-describedby={showValidation && !selectedStatus ? "rsvp-plan-error" : undefined}>
@@ -675,7 +676,7 @@ export function RSVPForm({ invitation, events, coupleName, locale, initialRespon
       <div className="rsvp-submit-row">
         <div>
           <p>{copy.updateHelp(invitation.rsvpDeadline[locale])}</p>
-          {hasExistingResponse && <small>{locale === "hi" ? "आपकी पिछली प्रतिक्रिया लोड हो गई है।" : "Your previous response has been loaded."}</small>}
+          {hasExistingResponse && <small>{locale === "hi" ? "आपका पिछला जवाब यहाँ भर दिया गया है।" : "Your previous reply is shown in this form."}</small>}
         </div>
         <button className="button button-primary" type="submit" disabled={isSaving}>
           {isSaving ? copy.saving : hasExistingResponse ? copy.updating : copy.submit}

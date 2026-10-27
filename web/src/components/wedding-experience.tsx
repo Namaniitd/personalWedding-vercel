@@ -95,9 +95,9 @@ export function WeddingExperience({ wedding, invitationToken, locale, mediaPlayi
       <div className={styles["reading-progress"]} aria-hidden="true" />
       {children(!motionActive || covered)}
       {hydrated && <div className={styles["experience-controls"]} aria-label={hi ? "निमंत्रण के एनीमेशन और संगीत" : "Invitation animation and music controls"}>
-        <button type="button" onClick={() => setMotionPaused(!motionPaused)} disabled={reduceMotion} aria-label={reduceMotion ? (hi ? "कम गति की सेटिंग चालू है" : "Reduced motion is enabled") : motionPaused ? (hi ? "एनीमेशन चलाएँ" : "Resume motion") : (hi ? "एनीमेशन रोकें" : "Pause motion")} aria-pressed={motionPaused || reduceMotion}>
+        <button type="button" onClick={() => setMotionPaused(!motionPaused)} disabled={reduceMotion} aria-label={reduceMotion ? (hi ? "एनीमेशन कम रखने की सेटिंग चालू है" : "Reduced motion is enabled") : motionPaused ? (hi ? "एनीमेशन चलाएँ" : "Resume animations") : (hi ? "एनीमेशन रोकें" : "Pause animations")} aria-pressed={motionPaused || reduceMotion}>
           <span aria-hidden="true">{motionPaused || reduceMotion ? "▷" : "Ⅱ"}</span>
-          {reduceMotion ? (hi ? "कम गति" : "Reduced motion") : motionPaused ? (hi ? "एनीमेशन बंद" : "Motion off") : (hi ? "एनीमेशन चालू" : "Motion on")}
+          {reduceMotion ? (hi ? "सीमित एनीमेशन" : "Reduced motion") : motionPaused ? (hi ? "एनीमेशन बंद" : "Animations off") : (hi ? "एनीमेशन चालू" : "Animations on")}
         </button>
         <InvitationMusic ref={music} key={invitationToken} token={invitationToken} locale={locale} paused={mediaPlaying} active={!covered} />
       </div>}
@@ -107,19 +107,19 @@ export function WeddingExperience({ wedding, invitationToken, locale, mediaPlayi
       <div className={`${styles["cover-door"]} ${styles["door-left"]}`} aria-hidden="true"><div className={styles["cover-door-frame"]} /></div>
       <div className={`${styles["cover-door"]} ${styles["door-right"]}`} aria-hidden="true"><div className={styles["cover-door-frame"]} /></div>
       <div className={styles["cover-atmosphere"]} aria-hidden="true"><Mandala className={styles["cover-background-mandala"]} /><PetalField /></div>
-      <div className={styles["cover-topline"]}><span>{hi ? "प्यार और अपनों के साथ एक उत्सव" : "A CELEBRATION OF LOVE & TOGETHERNESS"}</span><span lang="hi">शुभ विवाह</span></div>
+      <div className={styles["cover-topline"]}><span>{hi ? "सप्रेम निमंत्रण" : "WITH LOVE"}</span><span lang="hi">शुभ विवाह</span></div>
       <div className={styles["cover-content"]}>
         <p className={styles["cover-invocation"]} lang="sa">{wedding.guestContent?.hero?.invocation ?? "॥ श्री गणेशाय नमः ॥"}</p>
         <div className={styles["cover-emblem"]}><Mandala /><span aria-hidden="true">{initials[0]}{initials[1] && <><em>&</em>{initials[1]}</>}</span></div>
-        <p className={styles["cover-eyebrow"]}>{hi ? "परिवारों के स्नेह और आशीर्वाद के साथ" : "TOGETHER WITH OUR FAMILIES"}</p>
+        <p className={styles["cover-eyebrow"]}>{hi ? "अपनों के स्नेह और आशीर्वाद के साथ" : "TOGETHER WITH OUR FAMILIES"}</p>
         <h1 id="opening-title"><CoupleNames names={wedding.couple[locale]} locale={locale} parents={wedding.guestContent?.hero?.parents} /></h1>
         <div className={styles["cover-divider"]} aria-hidden="true"><span /><i>✦</i><span /></div>
-        <p id="opening-description" className={styles["cover-message"]}>{hi ? "एक छोटा सा निमंत्रण।" : "A little invitation."}<br /><em>{hi ? "जीवन भर की यादें।" : "A lifetime of memories."}</em></p>
+        <p id="opening-description" className={styles["cover-message"]}>{hi ? "हमारी खुशियों में शामिल हों।" : "Join us as we celebrate."}<br /><em>{hi ? "मिलकर बनाएँ जीवन भर की यादें।" : "Let’s make memories together."}</em></p>
         <p className={styles["cover-date"]}>{wedding.date[locale]} <span>·</span> {wedding.location[locale]}</p>
         <button ref={openButton} className={styles["open-invitation-button"]} type="button" disabled={stage === "opening"} onClick={() => enter()}>{stage === "opening" ? (hi ? "एक खूबसूरत शुरुआत…" : "A beautiful beginning…") : (hi ? "अपना निमंत्रण खोलें" : "Open your invitation")}<span aria-hidden="true">→</span></button>
         <button ref={skipButton} className={styles["skip-opening"]} type="button" onClick={() => enter(false)}>{hi ? "बिना एनीमेशन के खोलें" : "Enter without animation"} <span aria-hidden="true">↗</span></button>
       </div>
-      <p className={styles["cover-bottomline"]}>{hi ? "आपके आने से हमारी खुशियाँ और बढ़ेंगी।" : "WITH FULL HEARTS, WE SAVED YOU A PLACE."}</p>
+      <p className={styles["cover-bottomline"]}>{hi ? "आपके आने से हमारी खुशियाँ और बढ़ेंगी।" : "WE WOULD LOVE TO CELEBRATE WITH YOU."}</p>
     </div>}
   </div>;
 }

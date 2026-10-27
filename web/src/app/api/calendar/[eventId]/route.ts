@@ -11,9 +11,10 @@ import { bearerTokenRateLimitDigest, CALENDAR_BODY_LIMIT_BYTES, clientNetworkIde
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const calendarLocaleSchema = z.enum(["en", "hi"]).default("en");
 const calendarRequestSchema = z.union([
-  z.object({ token: invitationTokenSchema }).strict(),
-  z.object({ publicSide: z.enum(["groom", "bride"]) }).strict()
+  z.object({ token: invitationTokenSchema, locale: calendarLocaleSchema }).strict(),
+  z.object({ publicSide: z.enum(["groom", "bride"]), locale: calendarLocaleSchema }).strict()
 ]);
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const fileName = `${event.id.replace(/[^A-Za-z0-9_-]/g, "") || "wedding-event"}.ics`;
-    return privateText(createCalendarEvent(event), 200, {
+    return privateText(createCalendarEvent(event, parsed.data.locale), 200, {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": `attachment; filename="${fileName}"`
     });

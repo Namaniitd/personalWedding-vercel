@@ -9,14 +9,14 @@ import styles from "./wedding-countdown.module.css";
 
 const copy = {
   en: {
-    heading: "Counting down to our wedding",
+    heading: "Counting down to our big day",
     loading: "The wedding countdown is loading.",
     arrived: "The celebration is here!",
     units: { days: "Days", hours: "Hours", minutes: "Minutes", seconds: "Seconds" }
   },
   hi: {
-    heading: "हमारे शुभ विवाह की उलटी गिनती",
-    loading: "विवाह की उलटी गिनती शुरू हो रही है।",
+    heading: "शुभ विवाह की बेला आने में",
+    loading: "विवाह में बचे समय की जानकारी लोड हो रही है।",
     arrived: "शुभ विवाह की बेला आ गई!",
     units: { days: "दिन", hours: "घंटे", minutes: "मिनट", seconds: "सेकंड" }
   }
