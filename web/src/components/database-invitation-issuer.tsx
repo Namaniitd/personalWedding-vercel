@@ -110,15 +110,16 @@ function numericValue(value: string) {
 function invitationShareMessage(invitation: IssuedInvitation) {
   const householdName = invitation.householdName[invitation.preferredLocale];
   if (invitation.preferredLocale === "hi") {
-    return `प्रिय ${householdName},\n\nहमारे शुभ विवाह की खुशियों में आप सादर आमंत्रित हैं। समारोहों की जानकारी देखने और अपना जवाब देने के लिए नीचे दिया गया निजी निमंत्रण लिंक खोलें।\n\n${invitation.invitationUrl}\n\nकृपया यह लिंक केवल निमंत्रण में शामिल सदस्यों के साथ साझा करें।\n\nआपके साथ ये खुशियाँ बाँटने का इंतज़ार है!`;
+    return `प्रिय ${householdName} जी,\n\nहमें अत्यंत हर्ष हो रहा है कि हम आपको अपने विवाह के शुभ अवसर पर सादर आमंत्रित कर रहे हैं।\n\nविवाह समारोह से जुड़ी सभी जानकारियाँ देखने एवं अपनी उपस्थिति की पुष्टि करने के लिए कृपया नीचे दिए गए आपके व्यक्तिगत आमंत्रण लिंक पर जाएँ।\n\n💌 ${invitation.invitationUrl}\n\nकृपया इस आमंत्रण लिंक को केवल अपने परिवार के सदस्यों तक ही सीमित रखें।\n\nआपकी उपस्थिति हमारे इस विशेष अवसर की खुशियों को और भी बढ़ा देगी। आपके साथ इस मंगलमय अवसर को मनाने की हमें हार्दिक प्रतीक्षा रहेगी!`;
   }
 
-  return `Dear ${householdName},\n\nWe would love you to join our wedding celebrations.\n\nOpen your personal invitation below to view the event details and let us know whether you can join us.\n\n💌 ${invitation.invitationUrl}\n\nPlease share this link only with the people on your invitation.\n\nWe look forward to celebrating with you!`;
+  return `Dear ${householdName},\n\nYou are cordially invited to celebrate the joyous occasion of our wedding.\n\nPlease visit your personal invitation to view the event details and RSVP.\n\n💌 ${invitation.invitationUrl}\n\nKindly share this invitation link only with members of your household.\n\nWe look forward to celebrating this special occasion with you!`;
 }
 
 async function copyText(value: string) {
   try {
     await navigator.clipboard.writeText(value);
+    
     return true;
   } catch {
     const field = document.createElement("textarea");
